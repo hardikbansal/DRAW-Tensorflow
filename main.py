@@ -12,7 +12,6 @@ from layers import *
 # from scipy.misc import imsave
 # from PIL import Image
 
-# print(opt[0].num_iter)
 
 class VAE:
 	def initialize(self):
@@ -23,19 +22,28 @@ class VAE:
 		self.img_depth = opt.img_depth
 		self.z_size = opt.z_size
 		self.img_size = self.img_depth*self.img_height*self.img_width
+		self.nef = opt.nef
 
 
 
-	def encoder(input_x, name="encoder"):
+	def encoder(self,input_x, name="encoder"):
 		
 		with tf.variable_scope(name) as scope:
 
-			o_c1 = general_conv2d(input_x, )
+			o_c1 = general_conv2d(input_x, self.nef, 5, 5, 2, 2, padding="SAME", name="c1", do_norm=False)
+			o_c2 = general_conv2d(o_c1, self.nef*2, 5, 5, 2, 2, padding="SAME", name="c1", do_norm=False)
 
-			weight = tf.get_variable('weight',[self.z_size, self.img_size], initializer=tf.truncated_normal_initializer(mean=0.0, stddev=0.02))
-			bias = tf.get_variable('bias',[self.z_size], initializer=tf.constant_initializer(0.0))
+			shape_c = tf.shape(o_c2)
+			size_h = shape_h[1]*shape_h[2]*shape_h[3]
+
+			h = tf.reshape(o_c2,[self.batch_size, size_h])
+
+			mean = linear1d(h, size_h, self.z_size, name="mean")
+			stddev = linear1d(h, size_h, self.z_size, name="stddev")
+
+			return mean, stddev
 
 
 	def train(self):
 
-		input_x = tf.placeholder(tf.float32, [self.batch_size, self.img_size])
+		input_x = tf.placeholder(tf.float32, [self.batch_size, self.img_width, self.img_height, self.img_depth])
