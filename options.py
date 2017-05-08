@@ -8,6 +8,7 @@ class trainOptions():
 
 	def initialize(self):
 		self.parser.add_option('--num_iter', type='int', default=1000, dest='num_iter')
+		self.parser.add_option('--batch_size', type='int', default=10, dest='batch_size')
 
 		self.initialized = True
 
