@@ -58,6 +58,28 @@ class VAE:
 
 
 
-	def train(self):
+	def setup(self):
 
-		input_x = tf.placeholder(tf.float32, [self.batch_size, self.img_width, self.img_height, self.img_depth])
+		self.input_x = tf.placeholder(tf.float32, [self.batch_size, self.img_width, self.img_height, self.img_depth])
+
+		mean_z, std_z = self.encoder(self.input_x, "encoder")
+
+		#Now we need to extract a vector from N(mean_z, std_z)
+
+		z_sample = tf.random_normal([self.batch_size, self.z_size], 0 , 1)
+		z_sample = z_sample*std_z + mean_z
+
+		self.cyc_x = self.decoder(z_sample, "decoder")
+
+		model_vars = tf.trainable_variables()
+		self.encoder_variables = [var for var in model_vars if 'encoder' in var.name]
+		self.decoder_variables = [var for var in model_vars if 'decoder' in var.name]
+		
+		#Printing the model variables
+
+		for vars in  model_vars:
+			print(vars.name)
+
+	def train(self):
+		
+		self.setup()
