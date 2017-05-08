@@ -53,7 +53,7 @@ def general_conv2d(inputconv, o_d=64, f_h=5, f_w=5, s_h=1, s_w=1, stddev=0.02, p
 
 
 
-def general_deconv2d(inputconv, outshape, o_d=64, f_h=7, f_w=7, s_h=1, s_w=1, stddev=0.02, padding="VALID", name="deconv2d", do_norm=True, norm_type='batch_norm', do_relu=True, relufactor=0):
+def general_deconv2d(inputconv, o_d=64, f_h=7, f_w=7, s_h=1, s_w=1, stddev=0.02, padding="VALID", name="deconv2d", do_norm=True, norm_type='batch_norm', do_relu=True, relufactor=0):
     with tf.variable_scope(name) as scope:
 
         conv = tf.contrib.layers.conv2d_transpose(inputconv, o_d, [f_h, f_w], [s_h, s_w], padding, activation_fn=None, weights_initializer=tf.truncated_normal_initializer(stddev=stddev),biases_initializer=tf.constant_initializer(0.0))

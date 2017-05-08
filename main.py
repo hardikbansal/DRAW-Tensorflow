@@ -26,7 +26,7 @@ class VAE:
 
 
 
-	def encoder(self,input_x, name="encoder"):
+	def encoder(self, input_x, name="encoder"):
 		
 		with tf.variable_scope(name) as scope:
 
@@ -42,6 +42,20 @@ class VAE:
 			stddev = linear1d(h, size_h, self.z_size, name="stddev")
 
 			return mean, stddev
+
+
+	def decoder(self, input_z, name="decoder"):
+
+		with tf.variable_scope(name) as scope:
+
+			o_l = linear1d(input_z, self.z_size, 7*7*nef*2, name="revlin")
+
+			o_h = tf.nn.relu(tf.reshape(o_l, [self.batch_size, 7, 7, nef*2))
+			o_d1 = general_deconv2d(o_h, nef, 5, 5, 2, 2, padding="SAME", name="d1", do_norm=False)
+			o_d2 = general_deconv2d(o_d1, 1, 5, 5, 2, 2, padding="SAME", name="d1", do_norm=False, do_relu=False)
+
+			return tf.nn.sigmoid(o_d2)
+
 
 
 	def train(self):
