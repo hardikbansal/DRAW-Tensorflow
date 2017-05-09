@@ -8,9 +8,9 @@ from options import trainOptions
 
 from layers import *
 
-# from tensorflow.examples.tutorials.mnist import input_data
-# from scipy.misc import imsave
-# from PIL import Image
+from tensorflow.examples.tutorials.mnist import input_data
+from scipy.misc import imsave
+from PIL import Image
 
 
 class VAE:
@@ -23,6 +23,8 @@ class VAE:
 		self.z_size = opt.z_size
 		self.img_size = self.img_depth*self.img_height*self.img_width
 		self.nef = opt.nef
+
+		self.mnist = input_data.read_data_sets('MNIST_data', one_hot=True)
 
 
 
@@ -56,7 +58,13 @@ class VAE:
 
 			return tf.nn.sigmoid(o_d2)
 
+	def generation_loss(self, input_img, output_img, loss_type='diff'):
 
+		if (loss_type == 'diff'):
+			return tf.reduce_sum(tf.squared_difference(input_img, output_img),1)
+		elif (loss_type == 'log_diff'):
+			epsilon = 1e-8
+			return tf.reduce_sum(input_img*tf.log(output_img+epsilon) + (1 - input_img)*tf.log(epsilon + 1 - output_img),1) 
 
 	def setup(self):
 
@@ -69,11 +77,23 @@ class VAE:
 		z_sample = tf.random_normal([self.batch_size, self.z_size], 0 , 1)
 		z_sample = z_sample*std_z + mean_z
 
-		self.cyc_x = self.decoder(z_sample, "decoder")
+		gen_x_temp = self.decoder(z_sample, "decoder")
+
+		self.gen_x = tf.reshape(gen_x_temp,[self.batch_size, self.img_width, self.img_height, self.img_depth])
 
 		model_vars = tf.trainable_variables()
 		self.encoder_variables = [var for var in model_vars if 'encoder' in var.name]
 		self.decoder_variables = [var for var in model_vars if 'decoder' in var.name]
+
+		# Loss Function
+
+		self.gen_loss = 
+
+		self.vae_loss = 
+
+		optimizer = tf.train.AdamOptimizer(0.001)
+
+		self.loss_optimizer = optimizer.minimize()
 		
 		#Printing the model variables
 
@@ -83,3 +103,13 @@ class VAE:
 	def train(self):
 		
 		self.setup()
+
+		# Train
+
+		for epochs in range(0,self.max_epoch):
+			for itr in range(0,int(self.n_samples/self.batch_size)):
+				batch = self.mnist.next_bacth(self.batch_size)
+				imgs = batch[0]
+				labels = batch[1]
+
+				mean, stddev = sesson.run(,feed_dict={input_x:imgs})
