@@ -87,9 +87,10 @@ class VAE:
 
 		# Loss Function
 
-		self.gen_loss = 
+		self.gen_loss = self.generation_loss(self.input_x, self.gen_x)
+		self.latent_loss = tf.reduce_sum(tf.square(mean_z) + tf.square(std_z) - tf.log(tf.square(std_z)),1)
 
-		self.vae_loss = 
+		self.vae_loss = self.gen_loss + self.latent_loss
 
 		optimizer = tf.train.AdamOptimizer(0.001)
 
@@ -104,12 +105,19 @@ class VAE:
 		
 		self.setup()
 
+		init = tf.global_variables_initializer()
+		saver = tf.train.Saver()
+
 		# Train
 
-		for epochs in range(0,self.max_epoch):
-			for itr in range(0,int(self.n_samples/self.batch_size)):
-				batch = self.mnist.next_bacth(self.batch_size)
-				imgs = batch[0]
-				labels = batch[1]
+		with tf.Session() as sess:
 
-				mean, stddev = sesson.run(,feed_dict={input_x:imgs})
+			sess.run(init)
+
+			for epochs in range(0,self.max_epoch):
+				for itr in range(0,int(self.n_samples/self.batch_size)):
+					batch = self.mnist.next_bacth(self.batch_size)
+					imgs = batch[0]
+					labels = batch[1]
+
+					mean, stddev = sess.run(,feed_dict={input_x:imgs})
