@@ -7,6 +7,7 @@ import random
 import sys
 
 from layers import *
+from ops import *
 
 from tensorflow.examples.tutorials.mnist import input_data
 from scipy.misc import imsave
@@ -25,9 +26,10 @@ class VAE():
 		self.img_size = self.img_depth*self.img_height*self.img_width
 		self.nef = opt.nef
 		self.max_epoch = opt.max_epoch
-		self.n_samples = opt.n_samples
-
 		self.mnist = input_data.read_data_sets('MNIST_data', one_hot=True)
+		
+		self.n_samples = self.mnist.train.num_examples
+
 
 
 
@@ -63,43 +65,48 @@ class VAE():
 
 			return tf.nn.sigmoid(o_d2)
 
-	def generation_loss(self, input_img, output_img, loss_type='diff'):
+	def generation_loss(self, input_img, output_img, loss_type='log_diff'):
 
 		if (loss_type == 'diff'):
-			return tf.reduce_sum(tf.squared_difference(input_img, output_img),1)
+			return tf.reduce_sum(tf.squared_difference(input_img, output_img))
 		elif (loss_type == 'log_diff'):
 			epsilon = 1e-8
-			return tf.reduce_sum(input_img*tf.log(output_img+epsilon) + (1 - input_img)*tf.log(epsilon + 1 - output_img),1) 
+			return -tf.reduce_sum(input_img*tf.log(output_img+epsilon) + (1 - input_img)*tf.log(epsilon + 1 - output_img),[1, 2]) 
 
 	def setup(self):
 
-		self.input_x = tf.placeholder(tf.float32, [self.batch_size, self.img_width, self.img_height, self.img_depth])
 
-		mean_z, std_z = self.encoder(self.input_x, "encoder")
+		with tf.variable_scope("Model") as scope:
 
-		#Now we need to extract a vector from N(mean_z, std_z)
+			self.input_x = tf.placeholder(tf.float32, [self.batch_size, self.img_width, self.img_height, self.img_depth])
+			
+			mean_z, std_z = self.encoder(self.input_x, "encoder")
 
-		z_sample = tf.random_normal([self.batch_size, self.z_size], 0 , 1)
-		z_sample = z_sample*std_z + mean_z
+			#Now we need to extract a vector from N(mean_z, std_z)
 
-		gen_x_temp = self.decoder(z_sample, "decoder")
+			z_sample = tf.random_normal([self.batch_size, self.z_size], 0 , 1, dtype=tf.float32)
+			z_sample = z_sample*std_z + mean_z
 
-		self.gen_x = tf.reshape(gen_x_temp,[self.batch_size, self.img_width, self.img_height, self.img_depth])
+			gen_x_temp = self.decoder(z_sample, "decoder")
+
+			self.gen_x = gen_x_temp
 
 		model_vars = tf.trainable_variables()
-		self.encoder_variables = [var for var in model_vars if 'encoder' in var.name]
-		self.decoder_variables = [var for var in model_vars if 'decoder' in var.name]
 
 		# Loss Function
 
 		self.gen_loss = self.generation_loss(self.input_x, self.gen_x)
-		self.latent_loss = tf.reduce_sum(tf.square(mean_z) + tf.square(std_z) - tf.log(tf.square(std_z)),1)
+		self.latent_loss = 0.5*tf.reduce_sum(tf.square(mean_z) + tf.square(std_z) - tf.log(tf.square(std_z)) - 1,1)
 
-		self.vae_loss = self.gen_loss + self.latent_loss
+		self.vae_loss = tf.reduce_mean(self.gen_loss + self.latent_loss)
 
 		optimizer = tf.train.AdamOptimizer(0.001)
 
 		self.loss_optimizer = optimizer.minimize(self.vae_loss)
+
+		vae_loss_summ = tf.summary.scalar("vae_loss", self.vae_loss)
+
+		self.summary_op = tf.summary.merge_all()
 		
 		#Printing the model variables
 
@@ -123,8 +130,13 @@ class VAE():
 		with tf.Session() as sess:
 
 			sess.run(init)
+			writer = tf.summary.FileWriter("./output/tensorboard")
+
+			test_imgs = self.mnist.train.next_batch(self.batch_size)[0]
+			test_imgs = test_imgs.reshape((self.batch_size,28,28,1))
 
 			for epoch in range(0,self.max_epoch):
+
 				for itr in range(0,int(self.n_samples/self.batch_size)):
 					batch = self.mnist.train.next_batch(self.batch_size)
 					imgs = batch[0]
@@ -134,8 +146,17 @@ class VAE():
 
 					print('In the iteration '+str(itr)+" of epoch"+str(epoch))
 
-					sess.run(self.loss_optimizer,feed_dict={self.input_x:imgs})
+					_, summary_str = sess.run([self.loss_optimizer,self.summary_op],feed_dict={self.input_x:imgs})
 
+					writer.add_summary(summary_str,epoch*int(self.n_samples/self.batch_size) + itr)
+
+				# After each epoch things
+
+				out_img_test = sess.run(self.gen_x,feed_dict={self.input_x:test_imgs})
+
+				imsave("./output/imgs/epoch_"+str(epoch)+".jpg", flat_batch(out_img_test,self.batch_size,10,10))
+
+			writer.add_graph(sess.graph)
 
 model = VAE()
 model.train()
