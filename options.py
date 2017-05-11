@@ -9,6 +9,13 @@ class trainOptions():
 	def initialize(self):
 		self.parser.add_option('--num_iter', type='int', default=1000, dest='num_iter')
 		self.parser.add_option('--batch_size', type='int', default=10, dest='batch_size')
+		self.parser.add_option('--img_width', type='int', default=28, dest='img_width')
+		self.parser.add_option('--img_height', type='int', default=28, dest='img_height')
+		self.parser.add_option('--img_depth', type='int', default=1, dest='img_depth')
+		self.parser.add_option('--z_size', type='int', default=20, dest='z_size')
+		self.parser.add_option('--nef', type='int', default=16, dest='nef')
+		self.parser.add_option('--max_epoch', type='int', default=20, dest='max_epoch')
+		self.parser.add_option('--n_samples', type='int', default=20, dest='n_samples')
 
 		self.initialized = True
 

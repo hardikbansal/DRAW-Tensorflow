@@ -4,18 +4,19 @@ import os
 import shutil
 import time
 import random
-from options import trainOptions
+import sys
 
 from layers import *
 
 from tensorflow.examples.tutorials.mnist import input_data
 from scipy.misc import imsave
 from PIL import Image
+from options import trainOptions
 
 
-class VAE:
+class VAE():
 	def initialize(self):
-		self.opt = trainOptions().parse()
+		opt = trainOptions().parse()[0]
 		self.batch_size = opt.batch_size
 		self.img_width = opt.img_width
 		self.img_height = opt.img_height
@@ -23,8 +24,11 @@ class VAE:
 		self.z_size = opt.z_size
 		self.img_size = self.img_depth*self.img_height*self.img_width
 		self.nef = opt.nef
+		self.max_epoch = opt.max_epoch
+		self.n_samples = opt.n_samples
 
 		self.mnist = input_data.read_data_sets('MNIST_data', one_hot=True)
+
 
 
 
@@ -33,10 +37,11 @@ class VAE:
 		with tf.variable_scope(name) as scope:
 
 			o_c1 = general_conv2d(input_x, self.nef, 5, 5, 2, 2, padding="SAME", name="c1", do_norm=False)
-			o_c2 = general_conv2d(o_c1, self.nef*2, 5, 5, 2, 2, padding="SAME", name="c1", do_norm=False)
+			o_c2 = general_conv2d(o_c1, self.nef*2, 5, 5, 2, 2, padding="SAME", name="c2", do_norm=False)
 
-			shape_c = tf.shape(o_c2)
-			size_h = shape_h[1]*shape_h[2]*shape_h[3]
+			shape_c = o_c2.get_shape().as_list()
+			size_h = shape_c[1]*shape_c[2]*shape_c[3]
+			
 
 			h = tf.reshape(o_c2,[self.batch_size, size_h])
 
@@ -50,11 +55,11 @@ class VAE:
 
 		with tf.variable_scope(name) as scope:
 
-			o_l = linear1d(input_z, self.z_size, 7*7*nef*2, name="revlin")
+			o_l = linear1d(input_z, self.z_size, 7*7*self.nef*2, name="revlin")
 
-			o_h = tf.nn.relu(tf.reshape(o_l, [self.batch_size, 7, 7, nef*2))
-			o_d1 = general_deconv2d(o_h, nef, 5, 5, 2, 2, padding="SAME", name="d1", do_norm=False)
-			o_d2 = general_deconv2d(o_d1, 1, 5, 5, 2, 2, padding="SAME", name="d1", do_norm=False, do_relu=False)
+			o_h = tf.nn.relu(tf.reshape(o_l, [self.batch_size, 7, 7, self.nef*2]))
+			o_d1 = general_deconv2d(o_h, self.nef, 5, 5, 2, 2, padding="SAME", name="d1", do_norm=False)
+			o_d2 = general_deconv2d(o_d1, 1, 5, 5, 2, 2, padding="SAME", name="d2", do_norm=False, do_relu=False)
 
 			return tf.nn.sigmoid(o_d2)
 
@@ -94,7 +99,7 @@ class VAE:
 
 		optimizer = tf.train.AdamOptimizer(0.001)
 
-		self.loss_optimizer = optimizer.minimize()
+		self.loss_optimizer = optimizer.minimize(self.vae_loss)
 		
 		#Printing the model variables
 
@@ -102,7 +107,12 @@ class VAE:
 			print(vars.name)
 
 	def train(self):
+
+		# initialize all the variables
+		self.initialize()
 		
+
+		#Setting up the model and graph
 		self.setup()
 
 		init = tf.global_variables_initializer()
@@ -114,10 +124,18 @@ class VAE:
 
 			sess.run(init)
 
-			for epochs in range(0,self.max_epoch):
+			for epoch in range(0,self.max_epoch):
 				for itr in range(0,int(self.n_samples/self.batch_size)):
-					batch = self.mnist.next_bacth(self.batch_size)
+					batch = self.mnist.train.next_batch(self.batch_size)
 					imgs = batch[0]
 					labels = batch[1]
 
-					mean, stddev = sess.run(,feed_dict={input_x:imgs})
+					imgs = imgs.reshape((self.batch_size,28,28,1))
+
+					print('In the iteration '+str(itr)+" of epoch"+str(epoch))
+
+					sess.run(self.loss_optimizer,feed_dict={self.input_x:imgs})
+
+
+model = VAE()
+model.train()

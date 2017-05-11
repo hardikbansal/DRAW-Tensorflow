@@ -1,4 +1,6 @@
 import tensorflow as tf
+import numpy as np
+
 
 def lrelu(x, leak=0.2, name="lrelu", alt_relu_impl=False):
 
@@ -23,12 +25,12 @@ def instance_norm(x):
         return out
 
 
-def linear1d(inputlin, inputdim, outputdim, name="linear1d", stddev=0.02, mean=0.0):
+def linear1d(inputlin, inputdim, outputdim, name="linear1d", std=0.02, mn=0.0):
 
     with tf.variable_scope(name) as scope:
 
-        weight = tf.get_variable('weight',[inputdim, outputdim], initializer=tf.truncated_normal_initializer(mean=mean, stddev=stddev))
-        bias = tf.get_variable('bias',[outputdim], initializer=tf.constant_initializer(0.0))
+        weight = tf.get_variable("weight",[inputdim, outputdim], dtype=np.float32, initializer=tf.random_normal_initializer(stddev=0.02))
+        bias = tf.get_variable("bias",[outputdim], dtype=np.float32, initializer=tf.constant_initializer(0.0))
 
         return tf.matmul(inputlin, weight) + bias
 
@@ -36,11 +38,11 @@ def linear1d(inputlin, inputdim, outputdim, name="linear1d", stddev=0.02, mean=0
 def general_conv2d(inputconv, o_d=64, f_h=5, f_w=5, s_h=1, s_w=1, stddev=0.02, padding="VALID", name="conv2d", do_norm=True, norm_type='batch_norm', do_relu=True, relufactor=0):
     with tf.variable_scope(name) as scope:
         
-        conv = tf.contrib.layers.conv2d(inputconv, o_d, [f_w f_h], [s_w s_h], padding, activation_fn=None, weights_initializer=tf.truncated_normal_initializer(stddev=stddev),biases_initializer=tf.constant_initializer(0.0))
+        conv = tf.contrib.layers.conv2d(inputconv, o_d, [f_w, f_h], [s_w, s_h], padding, activation_fn=None, weights_initializer=tf.truncated_normal_initializer(stddev=stddev),biases_initializer=tf.constant_initializer(0.0))
         if do_norm:
             if norm_type == 'instance':
                 conv = instance_norm(conv)
-            else if norm_type == 'batch_norm':
+            elif norm_type == 'batch_norm':
                 conv = tf.contrib.layers.batch_norm(conv, decay=0.9, updates_collections=None, epsilon=1e-5, scale=True, scope="batch_norm")
             
         if do_relu:
@@ -61,7 +63,7 @@ def general_deconv2d(inputconv, o_d=64, f_h=7, f_w=7, s_h=1, s_w=1, stddev=0.02,
         if do_norm:
             if norm_type == 'instance':
                 conv = instance_norm(conv)
-            else if norm_type == 'batch_norm':
+            elif norm_type == 'batch_norm':
                 conv = tf.contrib.layers.batch_norm(conv, decay=0.9, updates_collections=None, epsilon=1e-5, scale=True, scope="batch_norm")
             
         if do_relu:
