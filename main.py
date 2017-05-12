@@ -27,8 +27,13 @@ class VAE():
 		self.nef = opt.nef
 		self.max_epoch = opt.max_epoch
 		self.mnist = input_data.read_data_sets('MNIST_data', one_hot=True)
+		self.to_test = opt.test
 		
 		self.n_samples = self.mnist.train.num_examples
+
+		self.tensorboard_dir = "./output/tensorboard"
+		self.check_dir = "./output/checkpoints/checkpoints"
+		self.images_dir = "./output/imgs"
 
 
 
@@ -79,6 +84,8 @@ class VAE():
 		with tf.variable_scope("Model") as scope:
 
 			self.input_x = tf.placeholder(tf.float32, [self.batch_size, self.img_width, self.img_height, self.img_depth])
+
+			self.input_z = tf.placeholder(tf.float32, [self.batch_size, self.z_size]) # For testing
 			
 			mean_z, std_z = self.encoder(self.input_x, "encoder")
 
@@ -87,9 +94,11 @@ class VAE():
 			z_sample = tf.random_normal([self.batch_size, self.z_size], 0 , 1, dtype=tf.float32)
 			z_sample = z_sample*std_z + mean_z
 
-			gen_x_temp = self.decoder(z_sample, "decoder")
+			self.gen_x = self.decoder(z_sample, "decoder")
 
-			self.gen_x = gen_x_temp
+			scope.reuse_variables()
+
+			self.output_x = self.decoder(self.input_z,"decoder")
 
 		model_vars = tf.trainable_variables()
 
@@ -115,22 +124,25 @@ class VAE():
 
 	def train(self):
 
-		# initialize all the variables
-		self.initialize()
-		
-
 		#Setting up the model and graph
 		self.setup()
 
 		init = tf.global_variables_initializer()
 		saver = tf.train.Saver()
 
+		if not os.path.exists(self.images_dir+"/train/"):
+			os.makedirs(self.images_dir+"/train/")
+		if not os.path.exists(self.images_dir+"/train/"):
+			os.makedirs(self.images_dir+"/train/")
+		if not os.path.exists(self.check_dir):
+			os.makedirs(self.check_dir)
+
 		# Train
 
 		with tf.Session() as sess:
 
 			sess.run(init)
-			writer = tf.summary.FileWriter("./output/tensorboard")
+			writer = tf.summary.FileWriter(self.tensorboard_dir)
 
 			test_imgs = self.mnist.train.next_batch(self.batch_size)[0]
 			test_imgs = test_imgs.reshape((self.batch_size,28,28,1))
@@ -152,11 +164,47 @@ class VAE():
 
 				# After each epoch things
 
+				saver.save(sess,os.path.join(self.check_dir,"vae"),global_step=epoch)
+
 				out_img_test = sess.run(self.gen_x,feed_dict={self.input_x:test_imgs})
 
-				imsave("./output/imgs/epoch_"+str(epoch)+".jpg", flat_batch(out_img_test,self.batch_size,10,10))
+				imsave(self.images_dir+"/train/epoch_"+str(epoch)+".jpg", flat_batch(out_img_test,self.batch_size,10,10))
 
 			writer.add_graph(sess.graph)
 
-model = VAE()
-model.train()
+	def test(self):
+
+		if not os.path.exists(self.images_dir+"/test/"):
+			os.makedirs(self.images_dir+"/test/")
+
+		self.setup()
+
+		saver = tf.train.Saver()
+
+		
+
+		with tf.Session() as sess:
+
+			chkpt_fname = tf.train.latest_checkpoint(self.check_dir)
+			saver.restore(sess,chkpt_fname)
+
+
+			z_sample = np.random.normal(0, 1, [self.batch_size, self.z_size])
+			
+			gen_x_temp = sess.run(self.output_x,feed_dict={self.input_z:z_sample})
+			
+			imsave(self.images_dir+"/test/output.jpg", flat_batch(gen_x_temp,self.batch_size,10,10))
+
+
+
+
+def main():
+	model = VAE()
+	model.initialize()
+	if(model.to_test == True):
+		model.test()
+	else:
+		model.train()
+
+if __name__ == "__main__":
+	main()
