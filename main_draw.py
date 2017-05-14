@@ -47,6 +47,9 @@ class VAE():
 			return tf.concat((r_temp, input_h),1)
 
 
+	def write(self, input_h, name="write"):
+		with tf.variable_scope(name) as scope:
+			return linear1d(input_h, self.dec_size, self.img_size,name="linear")
 
 
 	def encoder(self, input_x, enc_state, name="encoder"):		
@@ -57,7 +60,7 @@ class VAE():
 	def decoder(self, input_z, dec_state, name="decoder"):
 		with tf.variable_scope(name) as scope:
 
-			return self.LSTMC_dec(input_z, dec_state)
+			return self.LSTM_dec(input_z, dec_state)
 
 
 
@@ -72,7 +75,7 @@ class VAE():
 	def sampler(self, mean, stddev, name="sampler"):
 		with tf.variable_scope(name) as scope:
 
-			z = tf.random.normal([self.batch_size, self.z_size], 0 , 1, dtype=tf.float32)
+			z = tf.random_normal([self.batch_size, self.z_size], 0 , 1, dtype=tf.float32)
 			return z*stddev + mean
 			
 
@@ -82,7 +85,7 @@ class VAE():
 			return tf.reduce_sum(tf.squared_difference(input_img, output_img))
 		elif (loss_type == 'log_diff'):
 			epsilon = 1e-8
-			return -tf.reduce_sum(input_img*tf.log(output_img+epsilon) + (1 - input_img)*tf.log(epsilon + 1 - output_img),[1, 2]) 
+			return -tf.reduce_sum(input_img*tf.log(output_img+epsilon) + (1 - input_img)*tf.log(epsilon + 1 - output_img),[1, 2])
 
 	def setup(self):
 
@@ -92,24 +95,26 @@ class VAE():
 			self.input_x = tf.placeholder(tf.float32, [self.batch_size, self.img_size])
 			self.input_z = tf.placeholder(tf.float32, [self.batch_size, self.z_size]) # For testing
 
-			self.LSTM_enc = tf.contrib.rnn.LSTMCell(self.h_enc_size, state_is_tuple=True)
-			self.LSTM_dec = tf.contrib.rnn.LSTMCell(self.h_dec_size, state_is_tuple=True)
+			self.LSTM_enc = tf.contrib.rnn.LSTMCell(self.enc_size, state_is_tuple=True)
+			self.LSTM_dec = tf.contrib.rnn.LSTMCell(self.dec_size, state_is_tuple=True)
 
 			#Loop to train the Model
 
-			gen_x = nd.zeros((self.batch_size, self.img_size))
-			h_dec = nd.zeros((self.batch_size, self.enc_size))
-			h_enc = nd.zeros((self.batch_size, self.dec_size))
+			gen_x = tf.Variable(tf.zeros([self.batch_size, self.img_size]), trainable=False)
+			enc_state = self.LSTM_enc.zero_state(self.batch_size, tf.float32)
+			dec_state = self.LSTM_enc.zero_state(self.batch_size, tf.float32)
+			h_dec = tf.Variable(tf.zeros([self.batch_size, self.enc_size]), trainable=False)
+			# h_enc = tf.Variable(tf.zeros([self.batch_size, self.dec_size]), trainable=False)
 
 			for t in range(0, self.steps):
 
 				x_hat = self.input_x - tf.nn.sigmoid(gen_x)
-				r = self.read(x,x_hat,h_dec)
+				r = self.read(self.input_x,x_hat,h_dec)
 				h_enc, enc_state = self.encoder(r, enc_state)
 				mean, stddev = self.linear(h_enc)
 				z = self.sampler(mean, stddev)
 				h_dec, dec_state = self.decoder(z, dec_state)
-				c = c + write(h_dec)
+				gen_x = gen_x + self.write(h_dec)
 
 				scope.reuse_variables()
 
