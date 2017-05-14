@@ -29,6 +29,8 @@ class VAE():
 		self.mnist = input_data.read_data_sets('MNIST_data', one_hot=True)
 		self.to_test = opt.test
 		self.steps = opt.steps
+		self.enc_size = opt.enc_size
+		self.dec_size = opt.dec_size
 		
 		self.n_samples = self.mnist.train.num_examples
 
@@ -40,42 +42,37 @@ class VAE():
 
 
 	def read(self, input_x, input_x_hat, input_h, name="read"):
-
 		with tf.variable_scope(name) as scope:
-
 			r_temp = tf.concat((input_x, input_x_hat),1)
 			return tf.concat((r_temp, input_h),1)
 
 
 
 
-	def encoder(self, input_x, name="encoder"):
-		
+	def encoder(self, input_x, enc_state, name="encoder"):		
 		with tf.variable_scope(name) as scope:
 
-			
+			return self.LSTM_enc(input_x, enc_state)
 
-
-	def decoder(self, input_z, name="decoder"):
-
+	def decoder(self, input_z, dec_state, name="decoder"):
 		with tf.variable_scope(name) as scope:
+
+			return self.LSTMC_dec(input_z, dec_state)
+
+
 
 	def linear(self, input_h, name="linear"):
-
 		with tf.variable_scope(name) as scope:
 
 			mean = linear1d(input_h, self.enc_size, self.z_size, name="mean")
 			stddev = linear1d(input_h, self.enc_size, self.z_size, name="stddev")
-
 			return mean, tf.exp(stddev)
 
 
 	def sampler(self, mean, stddev, name="sampler"):
-
 		with tf.variable_scope(name) as scope:
 
 			z = tf.random.normal([self.batch_size, self.z_size], 0 , 1, dtype=tf.float32)
-
 			return z*stddev + mean
 			
 
@@ -105,6 +102,7 @@ class VAE():
 			h_enc = nd.zeros((self.batch_size, self.dec_size))
 
 			for t in range(0, self.steps):
+
 				x_hat = self.input_x - tf.nn.sigmoid(gen_x)
 				r = self.read(x,x_hat,h_dec)
 				h_enc, enc_state = self.encoder(r, enc_state)
@@ -112,6 +110,8 @@ class VAE():
 				z = self.sampler(mean, stddev)
 				h_dec, dec_state = self.decoder(z, dec_state)
 				c = c + write(h_dec)
+
+				scope.reuse_variables()
 
 
 		
@@ -121,48 +121,48 @@ class VAE():
 		#Setting up the model and graph
 		self.setup()
 
-		init = tf.global_variables_initializer()
-		saver = tf.train.Saver()
+		# init = tf.global_variables_initializer()
+		# saver = tf.train.Saver()
 
-		if not os.path.exists(self.images_dir+"/train/"):
-			os.makedirs(self.images_dir+"/train/")
-		if not os.path.exists(self.check_dir):
-			os.makedirs(self.check_dir)
+		# if not os.path.exists(self.images_dir+"/train/"):
+		# 	os.makedirs(self.images_dir+"/train/")
+		# if not os.path.exists(self.check_dir):
+		# 	os.makedirs(self.check_dir)
 
-		# Train
+		# # Train
 
-		with tf.Session() as sess:
+		# with tf.Session() as sess:
 
-			sess.run(init)
-			writer = tf.summary.FileWriter(self.tensorboard_dir)
+		# 	sess.run(init)
+		# 	writer = tf.summary.FileWriter(self.tensorboard_dir)
 
-			test_imgs = self.mnist.train.next_batch(self.batch_size)[0]
-			test_imgs = test_imgs.reshape((self.batch_size,28,28,1))
+		# 	test_imgs = self.mnist.train.next_batch(self.batch_size)[0]
+		# 	test_imgs = test_imgs.reshape((self.batch_size,28,28,1))
 
-			for epoch in range(0,self.max_epoch):
+		# 	for epoch in range(0,self.max_epoch):
 
-				for itr in range(0,int(self.n_samples/self.batch_size)):
-					batch = self.mnist.train.next_batch(self.batch_size)
-					imgs = batch[0]
-					labels = batch[1]
+		# 		for itr in range(0,int(self.n_samples/self.batch_size)):
+		# 			batch = self.mnist.train.next_batch(self.batch_size)
+		# 			imgs = batch[0]
+		# 			labels = batch[1]
 
-					imgs = imgs.reshape((self.batch_size,28,28,1))
+		# 			imgs = imgs.reshape((self.batch_size,28,28,1))
 
-					print('In the iteration '+str(itr)+" of epoch"+str(epoch))
+		# 			print('In the iteration '+str(itr)+" of epoch"+str(epoch))
 
-					_, summary_str = sess.run([self.loss_optimizer,self.summary_op],feed_dict={self.input_x:imgs})
+		# 			_, summary_str = sess.run([self.loss_optimizer,self.summary_op],feed_dict={self.input_x:imgs})
 
-					writer.add_summary(summary_str,epoch*int(self.n_samples/self.batch_size) + itr)
+		# 			writer.add_summary(summary_str,epoch*int(self.n_samples/self.batch_size) + itr)
 
-				# After each epoch things
+		# 		# After each epoch things
 
-				saver.save(sess,os.path.join(self.check_dir,"vae"),global_step=epoch)
+		# 		saver.save(sess,os.path.join(self.check_dir,"vae"),global_step=epoch)
 
-				out_img_test = sess.run(self.gen_x,feed_dict={self.input_x:test_imgs})
+		# 		out_img_test = sess.run(self.gen_x,feed_dict={self.input_x:test_imgs})
 
-				imsave(self.images_dir+"/train/epoch_"+str(epoch)+".jpg", flat_batch(out_img_test,self.batch_size,10,10))
+		# 		imsave(self.images_dir+"/train/epoch_"+str(epoch)+".jpg", flat_batch(out_img_test,self.batch_size,10,10))
 
-			writer.add_graph(sess.graph)
+		# 	writer.add_graph(sess.graph)
 
 	def test(self):
 
