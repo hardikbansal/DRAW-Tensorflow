@@ -15,7 +15,7 @@ from PIL import Image
 from options import trainOptions
 
 
-class VAE():
+class Draw():
 	def initialize(self):
 		opt = trainOptions().parse()[0]
 		self.batch_size = opt.batch_size
@@ -87,7 +87,15 @@ class VAE():
 			epsilon = 1e-8
 			return -tf.reduce_sum(input_img*tf.log(output_img+epsilon) + (1 - input_img)*tf.log(epsilon + 1 - output_img),1)
 
-	def latent_loss(self):
+	def latent_loss(self, mean_z, std_z) :
+
+		loss = [0]*self.steps
+
+		for i in range(0, self.steps):
+			loss[i] = 0.5*tf.reduce_sum(tf.square(mean_z[i]) + tf.square(std_z[i]) - tf.log(tf.square(std_z[i])) - 1,1)
+
+		return tf.add_n(loss)
+
 
 
 
@@ -104,21 +112,21 @@ class VAE():
 
 			#Loop to train the Model
 
-			gen_x = tf.Variable(tf.zeros([self.batch_size, self.img_size]), trainable=False)
+			self.gen_x = tf.Variable(tf.zeros([self.batch_size, self.img_size]), trainable=False)
 			enc_state = self.LSTM_enc.zero_state(self.batch_size, tf.float32)
 			dec_state = self.LSTM_enc.zero_state(self.batch_size, tf.float32)
 			h_dec = tf.Variable(tf.zeros([self.batch_size, self.enc_size]), trainable=False)
 
-			self.mean = [0]*self.steps
-			self.stddev = [0]*self.steps
+			self.mean_z = [0]*self.steps
+			self.std_z = [0]*self.steps
 
 			for t in range(0, self.steps):
 
 				x_hat = self.input_x - tf.nn.sigmoid(self.gen_x)
 				r = self.read(self.input_x,x_hat,h_dec)
 				h_enc, enc_state = self.encoder(r, enc_state)
-				self.mean[t], self.stddev[t] = self.linear(h_enc)
-				z = self.sampler(self.mean[t], self.stddev[t])
+				self.mean_z[t], self.std_z[t] = self.linear(h_enc)
+				z = self.sampler(self.mean_z[t], self.std_z[t])
 				h_dec, dec_state = self.decoder(z, dec_state)
 				self.gen_x = self.gen_x + self.write(h_dec)
 
@@ -128,9 +136,16 @@ class VAE():
 	def loss_setup(self):
 
 		self.images_loss = self.generation_loss(self.input_x, self.gen_x)
-		self.latent_loss = self.discriminator_loss()
+		self.lat_loss = self.latent_loss(self.mean_z, self.std_z)
 
-		return self.images_loss + self.latent_loss	
+		self.draw_loss = tf.reduce_mean(self.images_loss + self.lat_loss)
+
+		optimizer = tf.train.AdamOptimizer(0.001)	
+		self.loss_optimizer = optimizer.minimize(self.draw_loss)
+
+		self.draw_loss_summ = tf.summary.scalar("draw_loss", self.draw_loss)
+
+
 
 	def train(self):
 
@@ -213,7 +228,7 @@ class VAE():
 
 def main():
 
-	model = VAE()
+	model = Draw()
 	model.initialize()
 
 	if(model.to_test == True):
