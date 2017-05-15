@@ -78,7 +78,7 @@ class VAE():
 			epsilon = 1e-8
 			return -tf.reduce_sum(input_img*tf.log(output_img+epsilon) + (1 - input_img)*tf.log(epsilon + 1 - output_img),[1, 2])
 
-	def discriminator_loss(self, mean_z, std_z) :
+	def latent_loss(self, mean_z, std_z) :
 
 		return 0.5*tf.reduce_sum(tf.square(mean_z) + tf.square(std_z) - tf.log(tf.square(std_z)) - 1,1)
 
@@ -111,9 +111,9 @@ class VAE():
 		# Loss Function
 
 		self.gen_loss = self.generation_loss(self.input_x, self.gen_x)
-		self.latent_loss = self.discriminator_loss(mean_z, std_z)
+		self.lat_loss = self.latent_loss(mean_z, std_z)
 
-		self.vae_loss = tf.reduce_mean(self.gen_loss + self.latent_loss)
+		self.vae_loss = tf.reduce_mean(self.gen_loss + self.lat_loss)
 
 		optimizer = tf.train.AdamOptimizer(0.001)
 

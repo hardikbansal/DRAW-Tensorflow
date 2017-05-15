@@ -87,7 +87,7 @@ class VAE():
 			epsilon = 1e-8
 			return -tf.reduce_sum(input_img*tf.log(output_img+epsilon) + (1 - input_img)*tf.log(epsilon + 1 - output_img),1)
 
-	def discriminator_loss(self):
+	def latent_loss(self):
 
 
 
