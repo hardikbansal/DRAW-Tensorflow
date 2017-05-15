@@ -82,12 +82,16 @@ class VAE():
 	def generation_loss(self, input_img, output_img, loss_type='log_diff'):
 
 		if (loss_type == 'diff'):
-			return tf.reduce_sum(tf.squared_difference(input_img, output_img))
+			return tf.reduce_sum(tf.squared_difference(input_img, output_img),1)
 		elif (loss_type == 'log_diff'):
 			epsilon = 1e-8
-			return -tf.reduce_sum(input_img*tf.log(output_img+epsilon) + (1 - input_img)*tf.log(epsilon + 1 - output_img),[1, 2])
+			return -tf.reduce_sum(input_img*tf.log(output_img+epsilon) + (1 - input_img)*tf.log(epsilon + 1 - output_img),1)
 
-	def setup(self):
+	def discriminator_loss(self):
+
+
+
+	def model_setup(self):
 
 
 		with tf.variable_scope("Model") as scope:
@@ -104,27 +108,39 @@ class VAE():
 			enc_state = self.LSTM_enc.zero_state(self.batch_size, tf.float32)
 			dec_state = self.LSTM_enc.zero_state(self.batch_size, tf.float32)
 			h_dec = tf.Variable(tf.zeros([self.batch_size, self.enc_size]), trainable=False)
-			# h_enc = tf.Variable(tf.zeros([self.batch_size, self.dec_size]), trainable=False)
+
+			self.mean = [0]*self.steps
+			self.stddev = [0]*self.steps
 
 			for t in range(0, self.steps):
 
-				x_hat = self.input_x - tf.nn.sigmoid(gen_x)
+				x_hat = self.input_x - tf.nn.sigmoid(self.gen_x)
 				r = self.read(self.input_x,x_hat,h_dec)
 				h_enc, enc_state = self.encoder(r, enc_state)
-				mean, stddev = self.linear(h_enc)
-				z = self.sampler(mean, stddev)
+				self.mean[t], self.stddev[t] = self.linear(h_enc)
+				z = self.sampler(self.mean[t], self.stddev[t])
 				h_dec, dec_state = self.decoder(z, dec_state)
-				gen_x = gen_x + self.write(h_dec)
+				self.gen_x = self.gen_x + self.write(h_dec)
 
 				scope.reuse_variables()
 
 
-		
+	def loss_setup(self):
+
+		self.images_loss = self.generation_loss(self.input_x, self.gen_x)
+		self.latent_loss = self.discriminator_loss()
+
+		return self.images_loss + self.latent_loss	
 
 	def train(self):
 
 		#Setting up the model and graph
-		self.setup()
+		self.model_setup()
+
+		self.loss_setup()
+
+
+		# Setting up loss function
 
 		# init = tf.global_variables_initializer()
 		# saver = tf.train.Saver()
