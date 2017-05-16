@@ -94,7 +94,7 @@ class Draw():
 		for i in range(0, self.steps):
 			loss[i] = 0.5*tf.reduce_sum(tf.square(mean_z[i]) + tf.square(std_z[i]) - tf.log(tf.square(std_z[i])) - 1,1)
 
-		return tf.add_n(loss)
+		return tf.add_n(loss)/self.steps
 
 
 
@@ -105,7 +105,9 @@ class Draw():
 		with tf.variable_scope("Model") as scope:
 
 			self.input_x = tf.placeholder(tf.float32, [self.batch_size, self.img_size])
-			self.input_z = tf.placeholder(tf.float32, [self.batch_size, self.z_size]) # For testing
+
+			# For testing
+			self.input_z = tf.placeholder(tf.float32, [self.batch_size, self.z_size]) 
 
 			self.LSTM_enc = tf.contrib.rnn.LSTMCell(self.enc_size, state_is_tuple=True)
 			self.LSTM_dec = tf.contrib.rnn.LSTMCell(self.dec_size, state_is_tuple=True)
@@ -138,6 +140,12 @@ class Draw():
 		self.images_loss = self.generation_loss(self.input_x, self.gen_x)
 		self.lat_loss = self.latent_loss(self.mean_z, self.std_z)
 
+		self.images_loss_mean = tf.reduce_mean(self.images_loss)
+		self.lat_loss_mean = tf.reduce_mean(self.lat_loss)
+
+
+		print(self.images_loss.shape, self.lat_loss.shape)
+
 		self.draw_loss = tf.reduce_mean(self.images_loss + self.lat_loss)
 
 		optimizer = tf.train.AdamOptimizer(0.001)	
@@ -155,50 +163,50 @@ class Draw():
 		self.loss_setup()
 
 
-		# Setting up loss function
 
-		# init = tf.global_variables_initializer()
-		# saver = tf.train.Saver()
+		init = tf.global_variables_initializer()
+		saver = tf.train.Saver()
 
-		# if not os.path.exists(self.images_dir+"/train/"):
-		# 	os.makedirs(self.images_dir+"/train/")
-		# if not os.path.exists(self.check_dir):
-		# 	os.makedirs(self.check_dir)
+		if not os.path.exists(self.images_dir+"/train/"):
+			os.makedirs(self.images_dir+"/train/")
+		if not os.path.exists(self.check_dir):
+			os.makedirs(self.check_dir)
 
-		# # Train
 
-		# with tf.Session() as sess:
+		# Train
 
-		# 	sess.run(init)
-		# 	writer = tf.summary.FileWriter(self.tensorboard_dir)
+		with tf.Session() as sess:
 
-		# 	test_imgs = self.mnist.train.next_batch(self.batch_size)[0]
-		# 	test_imgs = test_imgs.reshape((self.batch_size,28,28,1))
+			sess.run(init)
+			writer = tf.summary.FileWriter(self.tensorboard_dir)
 
-		# 	for epoch in range(0,self.max_epoch):
+			test_imgs = self.mnist.train.next_batch(self.batch_size)[0]
+			test_imgs = test_imgs.reshape((self.batch_size,28,28,1))
 
-		# 		for itr in range(0,int(self.n_samples/self.batch_size)):
-		# 			batch = self.mnist.train.next_batch(self.batch_size)
-		# 			imgs = batch[0]
-		# 			labels = batch[1]
+			for epoch in range(0,self.max_epoch):
 
-		# 			imgs = imgs.reshape((self.batch_size,28,28,1))
+				for itr in range(0,int(self.n_samples/self.batch_size)):
+					batch = self.mnist.train.next_batch(self.batch_size)
+					imgs = batch[0]
+					labels = batch[1]
 
-		# 			print('In the iteration '+str(itr)+" of epoch"+str(epoch))
+					imgs = imgs.reshape((self.batch_size,28*28*1))
 
-		# 			_, summary_str = sess.run([self.loss_optimizer,self.summary_op],feed_dict={self.input_x:imgs})
 
-		# 			writer.add_summary(summary_str,epoch*int(self.n_samples/self.batch_size) + itr)
+					_, summary_str, lat_loss_val, images_loss_val = sess.run([self.loss_optimizer, self.draw_loss_summ, self.lat_loss_mean, self.images_loss_mean],feed_dict={self.input_x:imgs})
+					print('In the iteration '+str(itr)+" of epoch"+str(epoch)+" with lat_loss of "+str(lat_loss_val)+ " and generation_loss of "+str(images_loss_val))
 
-		# 		# After each epoch things
+					writer.add_summary(summary_str,epoch*int(self.n_samples/self.batch_size) + itr)
 
-		# 		saver.save(sess,os.path.join(self.check_dir,"vae"),global_step=epoch)
+				# After each epoch things
 
-		# 		out_img_test = sess.run(self.gen_x,feed_dict={self.input_x:test_imgs})
+				saver.save(sess,os.path.join(self.check_dir,"vae"),global_step=epoch)
 
-		# 		imsave(self.images_dir+"/train/epoch_"+str(epoch)+".jpg", flat_batch(out_img_test,self.batch_size,10,10))
+				# out_img_test = sess.run(self.gen_x,feed_dict={self.input_x:test_imgs})
 
-		# 	writer.add_graph(sess.graph)
+				# imsave(self.images_dir+"/train/epoch_"+str(epoch)+".jpg", flat_batch(out_img_test,self.batch_size,10,10))
+
+			writer.add_graph(sess.graph)
 
 	def test(self):
 
