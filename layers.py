@@ -29,7 +29,7 @@ def linear1d(inputlin, inputdim, outputdim, name="linear1d", std=0.02, mn=0.0):
 
     with tf.variable_scope(name) as scope:
 
-        weight = tf.get_variable("weight",[inputdim, outputdim], dtype=np.float32, initializer=tf.random_normal_initializer(stddev=0.02))
+        weight = tf.get_variable("weight",[inputdim, outputdim])
         bias = tf.get_variable("bias",[outputdim], dtype=np.float32, initializer=tf.constant_initializer(0.0))
 
         return tf.matmul(inputlin, weight) + bias

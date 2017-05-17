@@ -49,7 +49,7 @@ class Draw():
 
 	def write(self, input_h, name="write"):
 		with tf.variable_scope(name) as scope:
-			return linear1d(input_h, self.dec_size, self.img_size,name="linear")
+			return linear1d(input_h, self.dec_size, self.img_size, name="linear")
 
 
 	def encoder(self, input_x, enc_state, name="encoder"):		
@@ -94,7 +94,7 @@ class Draw():
 		for i in range(0, self.steps):
 			loss[i] = 0.5*tf.reduce_sum(tf.square(mean_z[i]) + tf.square(std_z[i]) - tf.log(tf.square(std_z[i])) - 1,1)
 
-		return tf.add_n(loss)/self.steps
+		return tf.add_n(loss)
 
 
 
@@ -114,10 +114,10 @@ class Draw():
 
 			#Loop to train the Model
 
-			self.gen_x = tf.Variable(tf.zeros([self.batch_size, self.img_size]), trainable=False)
+			self.gen_x = tf.zeros([self.batch_size, self.img_size])
 			enc_state = self.LSTM_enc.zero_state(self.batch_size, tf.float32)
-			dec_state = self.LSTM_enc.zero_state(self.batch_size, tf.float32)
-			h_dec = tf.Variable(tf.zeros([self.batch_size, self.enc_size]), trainable=False)
+			dec_state = self.LSTM_dec.zero_state(self.batch_size, tf.float32)
+			h_dec = tf.zeros([self.batch_size, self.dec_size])
 
 			self.mean_z = [0]*self.steps
 			self.std_z = [0]*self.steps
@@ -134,22 +134,34 @@ class Draw():
 
 				scope.reuse_variables()
 
+		self.check_values = tf.reduce_mean(self.gen_x)
+
+		self.model_vars = tf.trainable_variables()
+
+		for var in self.model_vars: print(var.name, var.get_shape())
+
+
 
 	def loss_setup(self):
 
-		self.images_loss = self.generation_loss(self.input_x, self.gen_x)
+		self.images_loss = self.generation_loss(self.input_x, tf.nn.sigmoid(self.gen_x))
 		self.lat_loss = self.latent_loss(self.mean_z, self.std_z)
 
 		self.images_loss_mean = tf.reduce_mean(self.images_loss)
 		self.lat_loss_mean = tf.reduce_mean(self.lat_loss)
 
 
-		print(self.images_loss.shape, self.lat_loss.shape)
+		# print(self.images_loss.shape, self.lat_loss.shape)
 
 		self.draw_loss = tf.reduce_mean(self.images_loss + self.lat_loss)
 
-		optimizer = tf.train.AdamOptimizer(0.001)	
-		self.loss_optimizer = optimizer.minimize(self.draw_loss)
+		optimizer = tf.train.AdamOptimizer(0.001, beta1=0.5)	
+		grads=optimizer.compute_gradients(self.draw_loss)
+		for i,(g,v) in enumerate(grads):
+			if g is not None:
+				grads[i]=(tf.clip_by_norm(g,5),v) # clip gradients
+		self.loss_optimizer=optimizer.apply_gradients(grads)
+		# self.loss_optimizer = optimizer.minimize(self.draw_loss)
 
 		self.draw_loss_summ = tf.summary.scalar("draw_loss", self.draw_loss)
 
@@ -200,7 +212,7 @@ class Draw():
 
 				# After each epoch things
 
-				saver.save(sess,os.path.join(self.check_dir,"vae"),global_step=epoch)
+				saver.save(sess,os.path.join(self.check_dir,"draw"),global_step=epoch)
 
 				# out_img_test = sess.run(self.gen_x,feed_dict={self.input_x:test_imgs})
 
