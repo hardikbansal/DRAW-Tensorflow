@@ -9,6 +9,7 @@ import sys
 from layers import *
 from ops import *
 
+
 from tensorflow.examples.tutorials.mnist import input_data
 from scipy.misc import imsave
 from PIL import Image
