@@ -156,7 +156,7 @@ class Draw():
 		self.draw_loss = tf.reduce_mean(self.images_loss + self.lat_loss)
 
 		optimizer = tf.train.AdamOptimizer(0.001, beta1=0.5)	
-		grads=optimizer.compute_gradients(self.draw_loss)
+		grads = optimizer.compute_gradients(self.draw_loss)
 		for i,(g,v) in enumerate(grads):
 			if g is not None:
 				grads[i]=(tf.clip_by_norm(g,5),v) # clip gradients
@@ -198,6 +198,8 @@ class Draw():
 			for epoch in range(0,self.max_epoch):
 
 				for itr in range(0,int(self.n_samples/self.batch_size)):
+
+					print(time.time())
 					batch = self.mnist.train.next_batch(self.batch_size)
 					imgs = batch[0]
 					labels = batch[1]
@@ -212,8 +214,8 @@ class Draw():
 
 				# After each epoch things
 
-				saver.save(sess,os.path.join(self.check_dir,"draw"),global_step=epoch)
 
+			saver.save(sess,os.path.join(self.check_dir,"draw"),global_step=1)
 				# out_img_test = sess.run(self.gen_x,feed_dict={self.input_x:test_imgs})
 
 				# imsave(self.images_dir+"/train/epoch_"+str(epoch)+".jpg", flat_batch(out_img_test,self.batch_size,10,10))
