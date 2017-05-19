@@ -28,19 +28,21 @@ class VAE():
 		self.max_epoch = opt.max_epoch
 		self.mnist = input_data.read_data_sets('MNIST_data', one_hot=True)
 		self.to_test = opt.test
-		
+
 		self.n_samples = self.mnist.train.num_examples
 
-		self.tensorboard_dir = "./output/tensorboard"
-		self.check_dir = "./output/checkpoints/checkpoints"
-		self.images_dir = "./output/imgs"
+		self.tensorboard_dir = "./output/vae/tensorboard"
+		self.check_dir = "./output/vae/checkpoints"
+		self.images_dir = "./output/vae/imgs"
+
+		self.setup_done = False
 
 
 
 
 
 	def encoder(self, input_x, name="encoder"):
-		
+
 		with tf.variable_scope(name) as scope:
 
 			o_c1 = general_conv2d(input_x, self.nef, 5, 5, 2, 2, padding="SAME", name="c1", do_norm=False)
@@ -48,7 +50,7 @@ class VAE():
 
 			shape_c = o_c2.get_shape().as_list()
 			size_h = shape_c[1]*shape_c[2]*shape_c[3]
-			
+
 
 			h = tf.reshape(o_c2,[self.batch_size, size_h])
 
@@ -78,12 +80,6 @@ class VAE():
 			epsilon = 1e-8
 			return -tf.reduce_sum(input_img*tf.log(output_img+epsilon) + (1 - input_img)*tf.log(epsilon + 1 - output_img),[1, 2])
 
-	def latent_loss(self, mean_z, std_z) :
-
-		return 0.5*tf.reduce_sum(tf.square(mean_z) + tf.square(std_z) - tf.log(tf.square(std_z)) - 1,1)
-
-
-
 	def setup(self):
 
 
@@ -92,15 +88,15 @@ class VAE():
 			self.input_x = tf.placeholder(tf.float32, [self.batch_size, self.img_width, self.img_height, self.img_depth])
 
 			self.input_z = tf.placeholder(tf.float32, [self.batch_size, self.z_size]) # For testing
-			
-			mean_z, std_z = self.encoder(self.input_x, "encoder")
+
+			self.mean_z, self.std_z = self.encoder(self.input_x, "encoder")
 
 			#Now we need to extract a vector from N(mean_z, std_z)
 
-			z_sample = tf.random_normal([self.batch_size, self.z_size], 0 , 1, dtype=tf.float32)
-			z_sample = z_sample*std_z + mean_z
+			self.z_sample = tf.random_normal([self.batch_size, self.z_size], 0 , 1, dtype=tf.float32)
+			self.z_sample = self.z_sample*self.std_z + self.mean_z
 
-			self.gen_x = self.decoder(z_sample, "decoder")
+			self.gen_x = self.decoder(self.z_sample, "decoder")
 
 			scope.reuse_variables()
 
@@ -111,9 +107,9 @@ class VAE():
 		# Loss Function
 
 		self.gen_loss = self.generation_loss(self.input_x, self.gen_x)
-		self.lat_loss = self.latent_loss(mean_z, std_z)
+		self.latent_loss = 0.5*tf.reduce_sum(tf.square(self.mean_z) + tf.square(self.std_z) - tf.log(tf.square(self.std_z)) - 1,1)
 
-		self.vae_loss = tf.reduce_mean(self.gen_loss + self.lat_loss)
+		self.vae_loss = tf.reduce_mean(self.gen_loss + self.latent_loss)
 
 		optimizer = tf.train.AdamOptimizer(0.001)
 
@@ -122,7 +118,7 @@ class VAE():
 		vae_loss_summ = tf.summary.scalar("vae_loss", self.vae_loss)
 
 		self.summary_op = tf.summary.merge_all()
-		
+
 		#Printing the model variables
 
 		for vars in  model_vars:
@@ -136,8 +132,6 @@ class VAE():
 		init = tf.global_variables_initializer()
 		saver = tf.train.Saver()
 
-		if not os.path.exists(self.images_dir+"/train/"):
-			os.makedirs(self.images_dir+"/train/")
 		if not os.path.exists(self.images_dir+"/train/"):
 			os.makedirs(self.images_dir+"/train/")
 		if not os.path.exists(self.check_dir):
@@ -183,11 +177,14 @@ class VAE():
 		if not os.path.exists(self.images_dir+"/test/"):
 			os.makedirs(self.images_dir+"/test/")
 
-		self.setup()
+
+		if not self.setup_done:
+			self.setup()
+			self.setup_done=True
 
 		saver = tf.train.Saver()
 
-		
+
 
 		with tf.Session() as sess:
 
@@ -196,10 +193,47 @@ class VAE():
 
 
 			z_sample = np.random.normal(0, 1, [self.batch_size, self.z_size])
-			
+
 			gen_x_temp = sess.run(self.output_x,feed_dict={self.input_z:z_sample})
-			
+
 			imsave(self.images_dir+"/test/output.jpg", flat_batch(gen_x_temp,self.batch_size,10,10))
+
+	def get_stats(self):
+
+		if not os.path.exists(self.images_dir+"/test/"):
+			os.makedirs(self.images_dir+"/test/")
+
+		if not self.setup_done:
+			self.setup()
+			self.setup_done=True
+
+		saver = tf.train.Saver()
+
+		with tf.Session() as sess:
+
+			chkpt_fname = tf.train.latest_checkpoint(self.check_dir)
+			saver.restore(sess,chkpt_fname)
+
+			batch = self.mnist.test.next_batch(self.batch_size)
+
+			imgs = batch[0]
+			labels = batch[1]
+
+			imgs = imgs.reshape((self.batch_size,28,28,1))
+
+			z_sample_test, out_img_test = sess.run([self.latent_loss, self.gen_x],feed_dict={self.input_x:imgs})
+
+			imsave(self.images_dir+"/test/input_sample.jpg", flat_batch(imgs,self.batch_size,10,10))
+			imsave(self.images_dir+"/test/output_sample.jpg", flat_batch(out_img_test,self.batch_size,10,10))
+
+			# mean_z_sample_test = np.mean(z_sample_test,axis=1)
+			# std_z_sample_test = np.std(z_sample_test,axis=1)
+			#
+			# print(mean_z_sample_test, std_z_sample_test)
+			print(z_sample_test)
+
+
+
 
 
 
@@ -209,6 +243,7 @@ def main():
 	model.initialize()
 	if(model.to_test == True):
 		model.test()
+		model.get_stats()
 	else:
 		model.train()
 
