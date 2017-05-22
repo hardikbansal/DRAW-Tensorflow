@@ -9,7 +9,6 @@ import sys
 from layers import *
 from ops import *
 
-
 from tensorflow.examples.tutorials.mnist import input_data
 from scipy.misc import imsave
 from PIL import Image
@@ -32,12 +31,12 @@ class Draw():
 		self.steps = opt.steps
 		self.enc_size = opt.enc_size
 		self.dec_size = opt.dec_size
-		
+
 		self.n_samples = self.mnist.train.num_examples
 
-		self.tensorboard_dir = "./output/tensorboard"
-		self.check_dir = "./output/checkpoints/checkpoints"
-		self.images_dir = "./output/imgs"
+		self.tensorboard_dir = "./output/draw/tensorboard"
+		self.check_dir = "./output/draw/checkpoints"
+		self.images_dir = "./output/draw/imgs"
 
 
 
@@ -53,7 +52,7 @@ class Draw():
 			return linear1d(input_h, self.dec_size, self.img_size, name="linear")
 
 
-	def encoder(self, input_x, enc_state, name="encoder"):		
+	def encoder(self, input_x, enc_state, name="encoder"):
 		with tf.variable_scope(name) as scope:
 
 			return self.LSTM_enc(input_x, enc_state)
@@ -78,7 +77,7 @@ class Draw():
 
 			z = tf.random_normal([self.batch_size, self.z_size], 0 , 1, dtype=tf.float32)
 			return z*stddev + mean
-			
+
 
 	def generation_loss(self, input_img, output_img, loss_type='log_diff'):
 
@@ -98,6 +97,13 @@ class Draw():
 		return tf.add_n(loss)
 
 
+	def same_sample(self, num_tensor, tensor_size):
+
+		elem = tf.random_normal([tensor_size],0,1,dtype=tf.float32)
+		list_tensor = [elem] * num_tensor
+		return tf.stack(list_tensor)
+
+
 
 
 	def model_setup(self):
@@ -108,7 +114,6 @@ class Draw():
 			self.input_x = tf.placeholder(tf.float32, [self.batch_size, self.img_size])
 
 			# For testing
-			self.input_z = tf.placeholder(tf.float32, [self.batch_size, self.z_size]) 
 
 			self.LSTM_enc = tf.contrib.rnn.LSTMCell(self.enc_size, state_is_tuple=True)
 			self.LSTM_dec = tf.contrib.rnn.LSTMCell(self.dec_size, state_is_tuple=True)
@@ -123,6 +128,8 @@ class Draw():
 			self.mean_z = [0]*self.steps
 			self.std_z = [0]*self.steps
 
+			#T steps for traning and training
+
 			for t in range(0, self.steps):
 
 				x_hat = self.input_x - tf.nn.sigmoid(self.gen_x)
@@ -135,13 +142,62 @@ class Draw():
 
 				scope.reuse_variables()
 
-		self.check_values = tf.reduce_mean(self.gen_x)
+			# T steps for generating after training
+
+			# self.input_z = tf.placeholder(tf.float32, [self.batch_size, self. self.z_size])
+
+
+			self.gen_x_gen = tf.zeros([self.batch_size, self.img_size])
+			dec_state_gen = self.LSTM_dec.zero_state(self.batch_size, tf.float32)
+
+
+			for t in range(0, self.steps):
+
+				if t < 2:
+					z_gen = self.same_sample(self.batch_size, self.z_size)
+				else :
+					z_gen = tf.random_normal([self.batch_size, self.z_size], 0 , 1, dtype=tf.float32)
+
+				h_dec_gen, dec_state_gen = self.decoder(z_gen, dec_state_gen)
+				self.gen_x_gen = self.gen_x_gen + self.write(h_dec_gen)
+
+				scope.reuse_variables()
+
+			self.gen_x_gen = tf.sigmoid(self.gen_x_gen)
+
+
+
+
 
 		self.model_vars = tf.trainable_variables()
 
 		for var in self.model_vars: print(var.name, var.get_shape())
 
 
+	def test_setup(self):
+
+		with tf.variable_scope("Model") as scope:
+
+			self.gen_x_gen = tf.zeros([self.batch_size, self.img_size])
+			dec_state_gen = self.LSTM_dec.zero_state(self.batch_size, tf.float32)
+
+			scope.reuse_variables()
+
+			for t in range(0, self.steps):
+
+				if t<3:
+					# z_gen = self.same_sample(self.batch_size, self.z_size)
+					z_gen = tf.random_normal([self.batch_size, self.z_size], 0 , 1, dtype=tf.float32)
+				else :
+					z_gen = tf.random_normal([self.batch_size, self.z_size], 0 , 1, dtype=tf.float32)
+
+
+				h_dec_gen, dec_state_gen = self.decoder(z_gen, dec_state_gen)
+				self.gen_x_gen = self.gen_x_gen + self.write(h_dec_gen)
+
+				scope.reuse_variables()
+
+			self.gen_x_gen = tf.sigmoid(self.gen_x_gen)
 
 	def loss_setup(self):
 
@@ -151,12 +207,9 @@ class Draw():
 		self.images_loss_mean = tf.reduce_mean(self.images_loss)
 		self.lat_loss_mean = tf.reduce_mean(self.lat_loss)
 
+		self.draw_loss = self.images_loss_mean + self.lat_loss_mean
 
-		# print(self.images_loss.shape, self.lat_loss.shape)
-
-		self.draw_loss = tf.reduce_mean(self.images_loss + self.lat_loss)
-
-		optimizer = tf.train.AdamOptimizer(0.001, beta1=0.5)	
+		optimizer = tf.train.AdamOptimizer(0.001, beta1=0.5)
 		grads = optimizer.compute_gradients(self.draw_loss)
 		for i,(g,v) in enumerate(grads):
 			if g is not None:
@@ -164,7 +217,11 @@ class Draw():
 		self.loss_optimizer=optimizer.apply_gradients(grads)
 		# self.loss_optimizer = optimizer.minimize(self.draw_loss)
 
+		self.images_loss_summ = tf.summary.scalar("images_loss", self.images_loss_mean)
 		self.draw_loss_summ = tf.summary.scalar("draw_loss", self.draw_loss)
+		self.lat_loss_summ = tf.summary.scalar("images_loss", self.lat_loss_mean)
+
+		self.merged_summ = tf.summary.merge_all()
 
 
 
@@ -194,13 +251,13 @@ class Draw():
 			writer = tf.summary.FileWriter(self.tensorboard_dir)
 
 			test_imgs = self.mnist.train.next_batch(self.batch_size)[0]
-			test_imgs = test_imgs.reshape((self.batch_size,28,28,1))
+			test_imgs = test_imgs.reshape((self.batch_size,28*28*1))
 
 			for epoch in range(0,self.max_epoch):
 
 				for itr in range(0,int(self.n_samples/self.batch_size)):
 
-					print(time.time())
+					# print(time.time())
 					batch = self.mnist.train.next_batch(self.batch_size)
 					imgs = batch[0]
 					labels = batch[1]
@@ -208,18 +265,20 @@ class Draw():
 					imgs = imgs.reshape((self.batch_size,28*28*1))
 
 
-					_, summary_str, lat_loss_val, images_loss_val = sess.run([self.loss_optimizer, self.draw_loss_summ, self.lat_loss_mean, self.images_loss_mean],feed_dict={self.input_x:imgs})
-					print('In the iteration '+str(itr)+" of epoch"+str(epoch)+" with lat_loss of "+str(lat_loss_val)+ " and generation_loss of "+str(images_loss_val))
+					_, summary_str = sess.run([self.loss_optimizer, self.merged_summ],feed_dict={self.input_x:imgs})
+					print('In the iteration '+str(itr)+" of epoch"+str(epoch))
 
 					writer.add_summary(summary_str,epoch*int(self.n_samples/self.batch_size) + itr)
 
 				# After each epoch things
 
+				out_img_test = sess.run(self.gen_x,feed_dict={self.input_x:test_imgs})
+				out_img_test = np.reshape(out_img_test,[self.batch_size, self.img_width, self.img_height, self.img_depth])
+				out_img_test = sigmoid(out_img_test)
 
-			saver.save(sess,os.path.join(self.check_dir,"draw"),global_step=1)
-				# out_img_test = sess.run(self.gen_x,feed_dict={self.input_x:test_imgs})
+				imsave(self.images_dir+"/train/epoch_"+str(epoch)+".jpg", flat_batch(out_img_test,self.batch_size,10,10))
 
-				# imsave(self.images_dir+"/train/epoch_"+str(epoch)+".jpg", flat_batch(out_img_test,self.batch_size,10,10))
+				saver.save(sess,os.path.join(self.check_dir,"draw"),global_step=epoch)
 
 			writer.add_graph(sess.graph)
 
@@ -228,11 +287,12 @@ class Draw():
 		if not os.path.exists(self.images_dir+"/test/"):
 			os.makedirs(self.images_dir+"/test/")
 
-		self.setup()
+		self.model_setup()
+		# self.test_setup()
 
 		saver = tf.train.Saver()
 
-		
+
 
 		with tf.Session() as sess:
 
@@ -240,11 +300,12 @@ class Draw():
 			saver.restore(sess,chkpt_fname)
 
 
-			z_sample = np.random.normal(0, 1, [self.batch_size, self.z_size])
-			
-			gen_x_temp = sess.run(self.output_x,feed_dict={self.input_z:z_sample})
-			
-			imsave(self.images_dir+"/test/output.jpg", flat_batch(gen_x_temp,self.batch_size,10,10))
+			z_sample = np.random.normal(0, 1, [self.batch_size, self.steps, self.z_size])
+
+			gen_x_temp = sess.run(self.gen_x_gen)
+			gen_x_temp = np.reshape(gen_x_temp,[self.batch_size, self.img_width, self.img_height, self.img_depth])
+
+			imsave(self.images_dir+"/test/output_draw.jpg", flat_batch(gen_x_temp,self.batch_size,10,10))
 
 
 
