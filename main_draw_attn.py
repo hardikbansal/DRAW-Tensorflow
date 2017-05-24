@@ -31,24 +31,30 @@ class Draw():
 		self.steps = opt.steps
 		self.enc_size = opt.enc_size
 		self.dec_size = opt.dec_size
-		self.filter_size = opt.filter_size
+		self.filter_size = 12
 
 		self.n_samples = self.mnist.train.num_examples
 
-		self.tensorboard_dir = "./output/draw/tensorboard"
-		self.check_dir = "./output/draw/checkpoints"
-		self.images_dir = "./output/draw/imgs"
+		self.tensorboard_dir = "./output/draw_attn/tensorboard"
+		self.check_dir = "./output/draw_attn/checkpoints"
+		self.images_dir = "./output/draw_attn/imgs"
 
 
-	def filter_banks(self, g_x, g_y, delta, sigma_squared, filter_size):
+	def create_filters(self, g_x, g_y, delta, sigma_squared, filter_size):
 
-		temp_1 = tf.stack([np.arrange(self.filter_size) - self.filter_size/2 - 1/2]*self.img_width)*delta + g_x
-		temp_2 = tf.stack([np.arrange(self.filter_size) - self.filter_size/2 - 1/2]*self.img_width)*delta + g_y
-		temp_3 = tf.stack([np.arrange(self.img_width)]*self.filter_size)
-		temp_4 = tf.stack([np.arrange(self.img_height)]*self.filter_size)
+		temp_1 = tf.stack([tf.range(self.filter_size, dtype=tf.float32) - self.filter_size/2.0 - 1/2.0]*self.img_width)
+		temp_1 = tf.multiply(delta, tf.stack([tf.range(self.filter_size, dtype=tf.float32) - self.filter_size/2.0 - 1/2.0]*self.img_width)) + g_x
+		temp_2 = tf.multiply(delta, tf.stack([tf.range(self.filter_size, dtype=tf.float32) - self.filter_size/2.0 - 1/2.0]*self.img_width)) + g_y
+		temp_3 = tf.transpose(tf.stack([np.arange(self.img_width)]*self.filter_size))
+		temp_4 = tf.transpose(tf.stack([np.arange(self.img_height)]*self.filter_size))
 
 		F_x = tf.exp(-1*tf.square((temp_1 - temp_3))/(2*sigma_squared))
 		F_y = tf.exp(-1*tf.square((temp_2 - temp_4))/(2*sigma_squared))
+
+		print(F_x.shape)
+
+		sys.exit()
+		# F_x = F_x/tf.reduce_sum
 
 
 
@@ -215,6 +221,8 @@ class Draw():
 	def train(self):
 
 		#Setting up the model and graph
+
+		print("In the training function")
 		self.model_setup()
 
 		self.loss_setup()
