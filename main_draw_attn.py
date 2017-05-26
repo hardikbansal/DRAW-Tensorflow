@@ -16,18 +16,14 @@ from options import trainOptions
 
 
 class Draw():
-	'''Define the DRAW model'''
-
 	def initialize(self):
-		'''Setup training options by parsing args'''
-
 		opt = trainOptions().parse()[0]
 		self.batch_size = opt.batch_size
 		self.img_width = opt.img_width
 		self.img_height = opt.img_height
 		self.img_depth = opt.img_depth
 		self.z_size = opt.z_size
-		self.img_size = self.img_depth * self.img_height * self.img_width
+		self.img_size = self.img_depth*self.img_height*self.img_width
 		self.nef = opt.nef
 		self.max_epoch = opt.max_epoch
 		self.mnist = input_data.read_data_sets('MNIST_data', one_hot=True)
@@ -35,8 +31,10 @@ class Draw():
 		self.steps = opt.steps
 		self.enc_size = opt.enc_size
 		self.dec_size = opt.dec_size
-		self.filter_size = 12
+		self.filter_size = 5
+
 		self.n_samples = self.mnist.train.num_examples
+
 		self.tensorboard_dir = "./output/draw_attn/tensorboard"
 		self.check_dir = "./output/draw_attn/checkpoints"
 		self.images_dir = "./output/draw_attn/imgs"
@@ -44,26 +42,62 @@ class Draw():
 
 	def create_filters(self, g_x, g_y, delta, sigma_squared, filter_size):
 
-		temp_1 = tf.stack([tf.range(self.filter_size, dtype=tf.float32) - self.filter_size/2.0 - 1/2.0]*self.img_width)
-		temp_1 = tf.multiply(delta, tf.stack([tf.range(self.filter_size, dtype=tf.float32) - self.filter_size/2.0 - 1/2.0]*self.img_width)) + g_x
-		temp_2 = tf.multiply(delta, tf.stack([tf.range(self.filter_size, dtype=tf.float32) - self.filter_size/2.0 - 1/2.0]*self.img_width)) + g_y
-		temp_3 = tf.transpose(tf.stack([np.arange(self.img_width)]*self.filter_size))
-		temp_4 = tf.transpose(tf.stack([np.arange(self.img_height)]*self.filter_size))
+		temp_1 = tf.stack([tf.stack([tf.range(self.filter_size, dtype=tf.float32) - self.filter_size/2.0 - 1/2.0]*self.img_width)]*self.batch_size) + tf.reshape(g_x,[self.batch_size, 1, 1])
+		temp_2 = tf.stack([tf.stack([tf.range(self.filter_size, dtype=tf.float32) - self.filter_size/2.0 - 1/2.0]*self.img_height)]*self.batch_size) + tf.reshape(g_y,[self.batch_size, 1, 1])
 
-		F_x = tf.exp(-1*tf.square((temp_1 - temp_3))/(2*sigma_squared))
-		F_y = tf.exp(-1*tf.square((temp_2 - temp_4))/(2*sigma_squared))
+		temp_3 = tf.stack([tf.transpose(tf.stack([tf.range(self.img_width, dtype=tf.float32)]*self.filter_size))]*self.batch_size)
+		temp_4 = tf.stack([tf.transpose(tf.stack([tf.range(self.img_height, dtype=tf.float32)]*self.filter_size))]*self.batch_size)
 
-		print(F_x.shape)
+		F_x = tf.exp(-1*tf.square((temp_1 - temp_3))/(2*tf.reshape(sigma_squared,[self.batch_size, 1, 1])))
+		F_y = tf.exp(-1*tf.square((temp_2 - temp_4))/(2*tf.reshape(sigma_squared,[self.batch_size, 1, 1])))
 
-		sys.exit()
-		# F_x = F_x/tf.reduce_sum
+		F_x = F_x/tf.reduce_mean(F_x, 1, keep_dims=True)
+		F_y = F_y/tf.reduce_mean(F_y, 1, keep_dims=True)
 
 
+		return F_x, F_y
 
 
+	def downsample(self, F_x, F_y, img):
+
+		img_temp = tf.reshape(img, [self.batch_size, self.img_width, self.img_height])
+		F_y_temp = tf.transpose(F_y, [0, 2, 1])
+
+		return tf.reshape(tf.matmul(F_y_temp,tf.matmul(img_temp,F_x)),[self.batch_size, self.filter_size*self.filter_size])
+
+	def upsample(self, F_x, F_y, img):
+
+		img_temp = tf.reshape(img, [self.batch_size, self.filter_size, self.filter_size])
+		F_x_temp = tf.transpose(F_x, [0, 2, 1])
+
+		return tf.reshape(tf.matmul(F_y,tf.matmul(img_temp,F_x_temp)),[self.batch_size, self.img_width*self.img_height])
 
 
 	def read(self, input_x, input_x_hat, input_h, name="read"):
+		with tf.variable_scope(name) as scope:
+
+			# Getting 5 features out of input_h
+
+			g_x_hat = linear1d(input_h, self.dec_size, 1, name="g_x_hat")
+			g_y_hat = linear1d(input_h, self.dec_size, 1, name="g_y_hat")
+			sigma_squared = tf.exp(linear1d(input_h, self.dec_size, 1, name="sigma_squared"))
+			delta = tf.exp(linear1d(input_h, self.dec_size, 1, name="delta"))
+			gamma = tf.exp(linear1d(input_h, self.dec_size, 1, name="gamma"))
+
+			g_x = (self.img_width + 1)/2*(g_x_hat+1)
+			g_y = (self.img_height + 1)/2*(g_y_hat+1)
+
+			# Getting the filters for the Downsampling
+
+			filter_x, filter_y = self.create_filters(g_x, g_y, delta, sigma_squared, self.filter_size)
+
+			r_temp_1 = self.downsample(filter_x, filter_y, input_x)
+			r_temp_2 = self.downsample(filter_x, filter_y, input_x_hat)
+
+			return tf.concat((r_temp_1, r_temp_2),1)
+
+
+	def write(self, input_h, name="write"):
 		with tf.variable_scope(name) as scope:
 
 			g_x_hat = linear1d(input_h, self.dec_size, 1, name="g_x_hat")
@@ -75,18 +109,15 @@ class Draw():
 			g_x = (self.img_width + 1)/2*(g_x_hat+1)
 			g_y = (self.img_height + 1)/2*(g_y_hat+1)
 
-
 			filter_x, filter_y = self.create_filters(g_x, g_y, delta, sigma_squared, self.filter_size)
 
+			img_temp = linear1d(input_h, self.dec_size, self.filter_size*self.filter_size, name="linear")
 
-			r_temp = tf.concat((input_x, input_x_hat),1)
+			r_temp = self.upsample(filter_x, filter_y, img_temp)
 
-			return tf.concat((r_temp, input_h),1)
+			return r_temp
 
 
-	def write(self, input_h, name="write"):
-		with tf.variable_scope(name) as scope:
-			return linear1d(input_h, self.dec_size, self.img_size, name="linear")
 
 
 	def encoder(self, input_x, enc_state, name="encoder"):
@@ -165,7 +196,7 @@ class Draw():
 
 				x_hat = self.input_x - tf.nn.sigmoid(self.gen_x)
 				r = self.read(self.input_x,x_hat,h_dec)
-				h_enc, enc_state = self.encoder(r, enc_state)
+				h_enc, enc_state = self.encoder(tf.concat((r,h_dec),1), enc_state)
 				self.mean_z[t], self.std_z[t] = self.linear(h_enc)
 				z = self.sampler(self.mean_z[t], self.std_z[t])
 				h_dec, dec_state = self.decoder(z, dec_state)
@@ -173,24 +204,11 @@ class Draw():
 
 				scope.reuse_variables()
 
-			#T steps for generating after training
-
-			# self.gen_x_gen = tf.zeros([self.batch_size, self.img_size])
-			# dec_state_gen = self.LSTM_dec.zero_state(self.batch_size, tf.float32)
-			# h_dec_gen = tf.zeros([self.batch_size, self.dec_size])
-
-
-			# for t in range(0, self.steps):
-			#
-			# 	z_gen = tf.random_normal([self.batch_size, self.z_size], 0 , 1, dtype=tf.float32)
-			# 	h_dec_gen, dec_state_gen = self.decoder(z_gen, dec_state_gen)
-			# 	self.gen_x_gen = self.gen_x_gen + write(h_dec_gen)
-			#
-			# 	scope.reuse_variables()
-
 		self.model_vars = tf.trainable_variables()
 
 		for var in self.model_vars: print(var.name, var.get_shape())
+
+		sys.exit()
 
 
 
