@@ -2,6 +2,8 @@ import optparse
 import os
 
 class trainOptions():
+	'''Uses optparse to allow user to define traning options'''
+
 	def __init__(self):
 		self.parser = optparse.OptionParser()
 		self.initialized = False

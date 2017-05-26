@@ -16,14 +16,18 @@ from options import trainOptions
 
 
 class Draw():
+	'''Define the DRAW model'''
+
 	def initialize(self):
+		'''Setup training options by parsing args'''
+
 		opt = trainOptions().parse()[0]
 		self.batch_size = opt.batch_size
 		self.img_width = opt.img_width
 		self.img_height = opt.img_height
 		self.img_depth = opt.img_depth
 		self.z_size = opt.z_size
-		self.img_size = self.img_depth*self.img_height*self.img_width
+		self.img_size = self.img_depth * self.img_height * self.img_width
 		self.nef = opt.nef
 		self.max_epoch = opt.max_epoch
 		self.mnist = input_data.read_data_sets('MNIST_data', one_hot=True)
@@ -32,9 +36,7 @@ class Draw():
 		self.enc_size = opt.enc_size
 		self.dec_size = opt.dec_size
 		self.filter_size = 12
-
 		self.n_samples = self.mnist.train.num_examples
-
 		self.tensorboard_dir = "./output/draw_attn/tensorboard"
 		self.check_dir = "./output/draw_attn/checkpoints"
 		self.images_dir = "./output/draw_attn/imgs"
