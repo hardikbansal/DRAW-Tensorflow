@@ -144,60 +144,32 @@ class Draw():
 
 			# T steps for generating after training
 
-			# self.input_z = tf.placeholder(tf.float32, [self.batch_size, self. self.z_size])
+
+			if(self.to_test):
+
+				self.gen_x_gen = tf.zeros([self.batch_size, self.img_size])
+				self.images_output = [0]*self.steps
+				dec_state_gen = self.LSTM_dec.zero_state(self.batch_size, tf.float32)
 
 
-			self.gen_x_gen = tf.zeros([self.batch_size, self.img_size])
-			dec_state_gen = self.LSTM_dec.zero_state(self.batch_size, tf.float32)
+				for t in range(0, self.steps):
 
+					if t > 2:
+						z_gen = self.same_sample(self.batch_size, self.z_size)
+					else :
+						z_gen = tf.random_normal([self.batch_size, self.z_size], 0 , 1, dtype=tf.float32)
 
-			for t in range(0, self.steps):
+					h_dec_gen, dec_state_gen = self.decoder(z_gen, dec_state_gen)
+					self.gen_x_gen = self.gen_x_gen + self.write(h_dec_gen)
+					self.images_output[t] = tf.sigmoid(self.gen_x_gen)
 
-				if t < 2:
-					z_gen = self.same_sample(self.batch_size, self.z_size)
-				else :
-					z_gen = tf.random_normal([self.batch_size, self.z_size], 0 , 1, dtype=tf.float32)
-
-				h_dec_gen, dec_state_gen = self.decoder(z_gen, dec_state_gen)
-				self.gen_x_gen = self.gen_x_gen + self.write(h_dec_gen)
-
-				scope.reuse_variables()
-
-			self.gen_x_gen = tf.sigmoid(self.gen_x_gen)
-
-
-
-
+					scope.reuse_variables()
 
 		self.model_vars = tf.trainable_variables()
 
 		for var in self.model_vars: print(var.name, var.get_shape())
 
 
-	def test_setup(self):
-
-		with tf.variable_scope("Model") as scope:
-
-			self.gen_x_gen = tf.zeros([self.batch_size, self.img_size])
-			dec_state_gen = self.LSTM_dec.zero_state(self.batch_size, tf.float32)
-
-			scope.reuse_variables()
-
-			for t in range(0, self.steps):
-
-				if t<3:
-					# z_gen = self.same_sample(self.batch_size, self.z_size)
-					z_gen = tf.random_normal([self.batch_size, self.z_size], 0 , 1, dtype=tf.float32)
-				else :
-					z_gen = tf.random_normal([self.batch_size, self.z_size], 0 , 1, dtype=tf.float32)
-
-
-				h_dec_gen, dec_state_gen = self.decoder(z_gen, dec_state_gen)
-				self.gen_x_gen = self.gen_x_gen + self.write(h_dec_gen)
-
-				scope.reuse_variables()
-
-			self.gen_x_gen = tf.sigmoid(self.gen_x_gen)
 
 	def loss_setup(self):
 
@@ -257,7 +229,6 @@ class Draw():
 
 				for itr in range(0,int(self.n_samples/self.batch_size)):
 
-					# print(time.time())
 					batch = self.mnist.train.next_batch(self.batch_size)
 					imgs = batch[0]
 					labels = batch[1]
@@ -288,7 +259,6 @@ class Draw():
 			os.makedirs(self.images_dir+"/test/")
 
 		self.model_setup()
-		# self.test_setup()
 
 		saver = tf.train.Saver()
 
@@ -302,10 +272,14 @@ class Draw():
 
 			z_sample = np.random.normal(0, 1, [self.batch_size, self.steps, self.z_size])
 
-			gen_x_temp = sess.run(self.gen_x_gen)
-			gen_x_temp = np.reshape(gen_x_temp,[self.batch_size, self.img_width, self.img_height, self.img_depth])
+			gen_x_temp = sess.run(self.images_output)
 
-			imsave(self.images_dir+"/test/output_draw.jpg", flat_batch(gen_x_temp,self.batch_size,10,10))
+			for t in range(self.steps):
+				gen_x_temp[t] = np.reshape(gen_x_temp[t],[self.batch_size, self.img_width, self.img_height, self.img_depth])
+				gen_x_temp[t] = flat_batch(gen_x_temp[t],self.batch_size,10,10)
+				imsave(self.images_dir+"/test/output_draw_" + str(t) + ".jpg", gen_x_temp[t])
+
+
 
 
 
@@ -315,7 +289,7 @@ def main():
 	model = Draw()
 	model.initialize()
 
-	if(model.to_test == True):
+	if(model.to_test):
 		model.test()
 	else:
 		model.train()

@@ -16,7 +16,7 @@ class trainOptions():
 		self.parser.add_option('--img_depth', type='int', default=1, dest='img_depth')
 		self.parser.add_option('--z_size', type='int', default=10, dest='z_size')
 		self.parser.add_option('--nef', type='int', default=16, dest='nef')
-		self.parser.add_option('--max_epoch', type='int', default=10, dest='max_epoch')
+		self.parser.add_option('--max_epoch', type='int', default=20, dest='max_epoch')
 		self.parser.add_option('--n_samples', type='int', default=1000, dest='n_samples')
 		self.parser.add_option('--test', action="store_true", default=False, dest="test")
 		self.parser.add_option('--steps', type='int', default=10, dest='steps')

@@ -40,24 +40,24 @@ class Draw():
 		self.images_dir = "./output/draw_attn/imgs"
 
 
-	def create_filters(self, g_x, g_y, delta, sigma_squared, filter_size):
-
-		eps=1e-8
-
-		temp_1 = tf.stack([tf.stack([tf.range(filter_size, dtype=tf.float32) - filter_size/2.0 - 1/2.0]*self.img_width)]*self.batch_size) + tf.reshape(g_x,[self.batch_size, 1, 1])
-		temp_2 = tf.stack([tf.stack([tf.range(filter_size, dtype=tf.float32) - filter_size/2.0 - 1/2.0]*self.img_height)]*self.batch_size) + tf.reshape(g_y,[self.batch_size, 1, 1])
-
-		temp_3 = tf.stack([tf.transpose(tf.stack([tf.range(self.img_width, dtype=tf.float32)]*self.filter_size))]*self.batch_size)
-		temp_4 = tf.stack([tf.transpose(tf.stack([tf.range(self.img_height, dtype=tf.float32)]*self.filter_size))]*self.batch_size)
-
-		F_x = tf.exp(-1*tf.square((temp_1 - temp_3))/(2*tf.reshape(sigma_squared,[self.batch_size, 1, 1])))
-		F_y = tf.exp(-1*tf.square((temp_2 - temp_4))/(2*tf.reshape(sigma_squared,[self.batch_size, 1, 1])))
-
-		F_x = F_x/tf.maximum(tf.reduce_sum(F_x, 1, keep_dims=True), eps)
-		F_y = F_y/tf.maximum(tf.reduce_sum(F_y, 1, keep_dims=True), eps)
-
-
-		return F_x, F_y
+	# def create_filters(self, g_x, g_y, delta, sigma_squared, filter_size):
+	#
+	# 	eps=1e-8
+	#
+	# 	temp_1 = tf.stack([tf.stack([tf.range(filter_size, dtype=tf.float32) - filter_size/2.0 - 1/2.0]*self.img_width)]*self.batch_size) + tf.reshape(g_x,[self.batch_size, 1, 1])
+	# 	temp_2 = tf.stack([tf.stack([tf.range(filter_size, dtype=tf.float32) - filter_size/2.0 - 1/2.0]*self.img_height)]*self.batch_size) + tf.reshape(g_y,[self.batch_size, 1, 1])
+	#
+	# 	temp_3 = tf.stack([tf.transpose(tf.stack([tf.range(self.img_width, dtype=tf.float32)]*self.filter_size))]*self.batch_size)
+	# 	temp_4 = tf.stack([tf.transpose(tf.stack([tf.range(self.img_height, dtype=tf.float32)]*self.filter_size))]*self.batch_size)
+	#
+	# 	F_x = tf.exp(-1*tf.square((temp_1 - temp_3))/(2*tf.reshape(sigma_squared,[self.batch_size, 1, 1])))
+	# 	F_y = tf.exp(-1*tf.square((temp_2 - temp_4))/(2*tf.reshape(sigma_squared,[self.batch_size, 1, 1])))
+	#
+	# 	F_x = F_x/tf.maximum(tf.reduce_sum(F_x, 1, keep_dims=True), eps)
+	# 	F_y = F_y/tf.maximum(tf.reduce_sum(F_y, 1, keep_dims=True), eps)
+	#
+	#
+	# 	return F_x, F_y
 
 	def filterbank(self, g_x, g_y, delta, sigma_squared, filter_size):
 
@@ -78,19 +78,23 @@ class Draw():
 		return F_x, F_y
 
 
-	def downsample(self, F_x, F_y, img):
+	def downsample(self, F_x, F_y, img, gamma):
 
 		img_temp = tf.reshape(img, [self.batch_size, self.img_width, self.img_height])
 		F_y_temp = tf.transpose(F_y, [0, 2, 1])
 
-		return tf.reshape(tf.matmul(F_y_temp,tf.matmul(img_temp,F_x)),[self.batch_size, self.filter_size*self.filter_size])
+		conv_temp = tf.reshape(tf.matmul(F_y_temp,tf.matmul(img_temp,F_x)),[self.batch_size, self.filter_size*self.filter_size])
 
-	def upsample(self, F_x, F_y, img):
+		return conv_temp
+
+	def upsample(self, F_x, F_y, img, gamma):
 
 		img_temp = tf.reshape(img, [self.batch_size, self.filter_size, self.filter_size])
 		F_x_temp = tf.transpose(F_x, [0, 2, 1])
 
-		return tf.reshape(tf.matmul(F_y,tf.matmul(img_temp,F_x_temp)),[self.batch_size, self.img_width*self.img_height])
+		conv_temp = tf.reshape(tf.matmul(F_y,tf.matmul(img_temp,F_x_temp)),[self.batch_size, self.img_size])
+
+		return conv_temp
 
 
 	def read(self, input_x, input_x_hat, input_h, name="read"):
@@ -111,8 +115,8 @@ class Draw():
 
 			filter_x, filter_y = self.filterbank(g_x, g_y, delta, sigma_squared, self.filter_size)
 
-			r_temp_1 = self.downsample(filter_x, filter_y, input_x)
-			r_temp_2 = self.downsample(filter_x, filter_y, input_x_hat)
+			r_temp_1 = self.downsample(filter_x, filter_y, input_x, gamma)
+			r_temp_2 = self.downsample(filter_x, filter_y, input_x_hat, gamma)
 
 			return tf.concat((r_temp_1, r_temp_2),1)
 
@@ -133,7 +137,7 @@ class Draw():
 
 			img_temp = linear1d(input_h, self.dec_size, self.filter_size*self.filter_size, name="linear")
 
-			r_temp = self.upsample(filter_x, filter_y, img_temp)
+			r_temp = self.upsample(filter_x, filter_y, img_temp, gamma)
 
 			return r_temp
 
