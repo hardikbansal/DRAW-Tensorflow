@@ -259,7 +259,7 @@ class Draw():
 
 		self.images_loss_summ = tf.summary.scalar("images_loss", self.images_loss_mean)
 		self.draw_loss_summ = tf.summary.scalar("draw_loss", self.draw_loss)
-		self.lat_loss_summ = tf.summary.scalar("images_loss", self.lat_loss_mean)
+		self.lat_loss_summ = tf.summary.scalar("latent_loss", self.lat_loss_mean)
 
 		self.merged_summ = tf.summary.merge_all()
 
