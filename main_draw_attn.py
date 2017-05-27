@@ -42,8 +42,10 @@ class Draw():
 
 	def create_filters(self, g_x, g_y, delta, sigma_squared, filter_size):
 
-		temp_1 = tf.stack([tf.stack([tf.range(self.filter_size, dtype=tf.float32) - self.filter_size/2.0 - 1/2.0]*self.img_width)]*self.batch_size) + tf.reshape(g_x,[self.batch_size, 1, 1])
-		temp_2 = tf.stack([tf.stack([tf.range(self.filter_size, dtype=tf.float32) - self.filter_size/2.0 - 1/2.0]*self.img_height)]*self.batch_size) + tf.reshape(g_y,[self.batch_size, 1, 1])
+		eps=1e-8
+
+		temp_1 = tf.stack([tf.stack([tf.range(filter_size, dtype=tf.float32) - filter_size/2.0 - 1/2.0]*self.img_width)]*self.batch_size) + tf.reshape(g_x,[self.batch_size, 1, 1])
+		temp_2 = tf.stack([tf.stack([tf.range(filter_size, dtype=tf.float32) - filter_size/2.0 - 1/2.0]*self.img_height)]*self.batch_size) + tf.reshape(g_y,[self.batch_size, 1, 1])
 
 		temp_3 = tf.stack([tf.transpose(tf.stack([tf.range(self.img_width, dtype=tf.float32)]*self.filter_size))]*self.batch_size)
 		temp_4 = tf.stack([tf.transpose(tf.stack([tf.range(self.img_height, dtype=tf.float32)]*self.filter_size))]*self.batch_size)
@@ -51,9 +53,27 @@ class Draw():
 		F_x = tf.exp(-1*tf.square((temp_1 - temp_3))/(2*tf.reshape(sigma_squared,[self.batch_size, 1, 1])))
 		F_y = tf.exp(-1*tf.square((temp_2 - temp_4))/(2*tf.reshape(sigma_squared,[self.batch_size, 1, 1])))
 
-		F_x = F_x/tf.reduce_mean(F_x, 1, keep_dims=True)
-		F_y = F_y/tf.reduce_mean(F_y, 1, keep_dims=True)
+		F_x = F_x/tf.maximum(tf.reduce_sum(F_x, 1, keep_dims=True), eps)
+		F_y = F_y/tf.maximum(tf.reduce_sum(F_y, 1, keep_dims=True), eps)
 
+
+		return F_x, F_y
+
+	def filterbank(self, g_x, g_y, delta, sigma_squared, filter_size):
+
+		eps=1e-8
+
+		temp_1 = tf.reshape(tf.range(filter_size, dtype=tf.float32) - filter_size/2.0 - 1/2.0,[1, 1 ,filter_size])
+		temp_2 = tf.reshape(tf.range(self.img_width, dtype=tf.float32),[1, self.img_width ,1])
+
+		mat_1 = temp_1*tf.reshape(delta, [self.batch_size, 1, 1]) + tf.reshape(g_x, [self.batch_size, 1, 1])
+		mat_2 = temp_1*tf.reshape(delta, [self.batch_size, 1, 1]) + tf.reshape(g_y, [self.batch_size, 1, 1])
+
+		F_x = tf.exp(-1.0*tf.square(temp_2 - mat_1)/2*tf.reshape(sigma_squared,[self.batch_size, 1, 1]))
+		F_y = tf.exp(-1.0*tf.square(temp_2 - mat_2)/2*tf.reshape(sigma_squared,[self.batch_size, 1, 1]))
+
+		F_x = F_x/tf.maximum(tf.reduce_sum(F_x, 1, keep_dims=True), eps)
+		F_y = F_y/tf.maximum(tf.reduce_sum(F_y, 1, keep_dims=True), eps)
 
 		return F_x, F_y
 
@@ -89,7 +109,7 @@ class Draw():
 
 			# Getting the filters for the Downsampling
 
-			filter_x, filter_y = self.create_filters(g_x, g_y, delta, sigma_squared, self.filter_size)
+			filter_x, filter_y = self.filterbank(g_x, g_y, delta, sigma_squared, self.filter_size)
 
 			r_temp_1 = self.downsample(filter_x, filter_y, input_x)
 			r_temp_2 = self.downsample(filter_x, filter_y, input_x_hat)
@@ -109,7 +129,7 @@ class Draw():
 			g_x = (self.img_width + 1)/2*(g_x_hat+1)
 			g_y = (self.img_height + 1)/2*(g_y_hat+1)
 
-			filter_x, filter_y = self.create_filters(g_x, g_y, delta, sigma_squared, self.filter_size)
+			filter_x, filter_y = self.filterbank(g_x, g_y, delta, sigma_squared, self.filter_size)
 
 			img_temp = linear1d(input_h, self.dec_size, self.filter_size*self.filter_size, name="linear")
 
@@ -189,6 +209,7 @@ class Draw():
 
 			self.mean_z = [0]*self.steps
 			self.std_z = [0]*self.steps
+			self.check_field = [0]*self.steps
 
 			#T steps for traning and training
 
@@ -196,6 +217,7 @@ class Draw():
 
 				x_hat = self.input_x - tf.nn.sigmoid(self.gen_x)
 				r = self.read(self.input_x,x_hat,h_dec)
+				self.check_field[t] = r
 				h_enc, enc_state = self.encoder(tf.concat((r,h_dec),1), enc_state)
 				self.mean_z[t], self.std_z[t] = self.linear(h_enc)
 				z = self.sampler(self.mean_z[t], self.std_z[t])
@@ -208,7 +230,7 @@ class Draw():
 
 		for var in self.model_vars: print(var.name, var.get_shape())
 
-		sys.exit()
+		# sys.exit()
 
 
 
@@ -279,9 +301,12 @@ class Draw():
 
 					imgs = imgs.reshape((self.batch_size,28*28*1))
 
+					# print("Image is equal to ",imgs[0])
+					_, summary_str, img_loss_temp, lat_loss_temp, check_field = sess.run([self.loss_optimizer, self.merged_summ, self.images_loss_mean, self.lat_loss_mean, self.check_field],feed_dict={self.input_x:imgs})
 
-					_, summary_str = sess.run([self.loss_optimizer, self.merged_summ],feed_dict={self.input_x:imgs})
-					print('In the iteration '+str(itr)+" of epoch"+str(epoch))
+
+					# print("check_field is: " + str(check_field[0][0]))
+					print('In the iteration '+str(itr)+" of epoch "+str(epoch)+" with image loss of "+str(img_loss_temp)+ " and lat loss of "+ str(lat_loss_temp))
 
 					writer.add_summary(summary_str,epoch*int(self.n_samples/self.batch_size) + itr)
 
