@@ -13,6 +13,7 @@ from tensorflow.examples.tutorials.mnist import input_data
 from scipy.misc import imsave
 from PIL import Image
 from options import trainOptions
+from tqdm import tqdm
 
 
 class Draw():
@@ -232,7 +233,7 @@ class Draw():
 
 		self.model_vars = tf.trainable_variables()
 
-		for var in self.model_vars: print(var.name, var.get_shape())
+		# for var in self.model_vars: print(var.name, var.get_shape())
 
 		# sys.exit()
 
@@ -268,7 +269,7 @@ class Draw():
 
 		#Setting up the model and graph
 
-		print("In the training function")
+		# print("In the training function")
 		self.model_setup()
 
 		self.loss_setup()
@@ -294,9 +295,9 @@ class Draw():
 			test_imgs = self.mnist.train.next_batch(self.batch_size)[0]
 			test_imgs = test_imgs.reshape((self.batch_size,28*28*1))
 
-			for epoch in range(0,self.max_epoch):
+			for epoch in tqdm(range(0,self.max_epoch),"Epoch    "):
 
-				for itr in range(0,int(self.n_samples/self.batch_size)):
+				for itr in tqdm(range(0,int(self.n_samples/self.batch_size)),"Iteration"):
 
 					# print(time.time())
 					batch = self.mnist.train.next_batch(self.batch_size)
@@ -310,7 +311,7 @@ class Draw():
 
 
 					# print("check_field is: " + str(check_field[0][0]))
-					print('In the iteration '+str(itr)+" of epoch "+str(epoch)+" with image loss of "+str(img_loss_temp)+ " and lat loss of "+ str(lat_loss_temp))
+					# print('In the iteration '+str(itr)+" of epoch "+str(epoch)+" with image loss of "+str(img_loss_temp)+ " and lat loss of "+ str(lat_loss_temp))
 
 					writer.add_summary(summary_str,epoch*int(self.n_samples/self.batch_size) + itr)
 
