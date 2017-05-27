@@ -61,21 +61,6 @@ class Draw():
 		return F_x, F_y
 
 
-	# def filterbank(gx, gy, sigma2,delta, N):
-	#     grid_i = tf.reshape(tf.cast(tf.range(N), tf.float32), [1, -1])
-	#     mu_x = gx + (grid_i - N / 2 - 0.5) * delta # eq 19
-	#     mu_y = gy + (grid_i - N / 2 - 0.5) * delta # eq 20
-	#     a = tf.reshape(tf.cast(tf.range(A), tf.float32), [1, 1, -1])
-	#     b = tf.reshape(tf.cast(tf.range(B), tf.float32), [1, 1, -1])
-	#     mu_x = tf.reshape(mu_x, [-1, N, 1])
-	#     mu_y = tf.reshape(mu_y, [-1, N, 1])
-	#     sigma2 = tf.reshape(sigma2, [-1, 1, 1])
-	#     Fx = tf.exp(-tf.square((a - mu_x) / (2*sigma2))) # 2*sigma2?
-	#     Fy = tf.exp(-tf.square((b - mu_y) / (2*sigma2))) # batch x N x B
-	#     # normalize, sum over A and B dims
-	#     Fx=Fx/tf.maximum(tf.reduce_sum(Fx,2,keep_dims=True),eps)
-	#     Fy=Fy/tf.maximum(tf.reduce_sum(Fy,2,keep_dims=True),eps)
-	#     return Fx,Fy
 
 	def downsample(self, F_x, F_y, img, gamma):
 
@@ -140,10 +125,6 @@ class Draw():
 
 			r_temp = self.upsample(filter_x, filter_y, img_temp, gamma)
 
-			# img_temp = linear1d(input_h, self.dec_size, self.img_size, name="linear")
-			#
-			# r_temp = img_temp
-
 			return r_temp
 
 
@@ -193,6 +174,12 @@ class Draw():
 
 		return tf.add_n(loss)
 
+	def same_sample(self, num_tensor, tensor_size):
+
+		elem = tf.random_normal([tensor_size],0,1,dtype=tf.float32)
+		list_tensor = [elem] * num_tensor
+		return tf.stack(list_tensor)
+
 
 
 
@@ -235,6 +222,27 @@ class Draw():
 
 				scope.reuse_variables()
 
+
+			if(self.to_test):
+
+				self.gen_x_gen = tf.zeros([self.batch_size, self.img_size])
+				self.images_output = [0]*self.steps
+				dec_state_gen = self.LSTM_dec.zero_state(self.batch_size, tf.float32)
+
+
+				for t in range(0, self.steps):
+
+					if t > 2:
+						z_gen = self.same_sample(self.batch_size, self.z_size)
+					else :
+						z_gen = tf.random_normal([self.batch_size, self.z_size], 0 , 1, dtype=tf.float32)
+
+					h_dec_gen, dec_state_gen = self.decoder(z_gen, dec_state_gen)
+					self.gen_x_gen = self.gen_x_gen + self.write(h_dec_gen)
+					self.images_output[t] = tf.sigmoid(self.gen_x_gen)
+
+					scope.reuse_variables()
+
 		self.model_vars = tf.trainable_variables()
 
 		# for var in self.model_vars: print(var.name, var.get_shape())
@@ -273,7 +281,7 @@ class Draw():
 
 		#Setting up the model and graph
 
-		# print("In the training function")
+		print("In the training function")
 		self.model_setup()
 
 		self.loss_setup()
@@ -310,12 +318,7 @@ class Draw():
 
 					imgs = imgs.reshape((self.batch_size,28*28*1))
 
-					# print("Image is equal to ",imgs[0])
 					_, summary_str, img_loss_temp, lat_loss_temp, check_field = sess.run([self.loss_optimizer, self.merged_summ, self.images_loss_mean, self.lat_loss_mean, self.check_field],feed_dict={self.input_x:imgs})
-
-
-					# print("check_field is: " + str(check_field[0][0]))
-					# print('In the iteration '+str(itr)+" of epoch "+str(epoch)+" with image loss of "+str(img_loss_temp)+ " and lat loss of "+ str(lat_loss_temp))
 
 					writer.add_summary(summary_str,epoch*int(self.n_samples/self.batch_size) + itr)
 
@@ -347,12 +350,12 @@ class Draw():
 			chkpt_fname = tf.train.latest_checkpoint(self.check_dir)
 			saver.restore(sess,chkpt_fname)
 
+			gen_x_temp = sess.run(self.images_output)
 
-			z_sample = np.random.normal(0, 1, [self.batch_size, self.z_size])
-
-			gen_x_temp = sess.run(self.output_x,feed_dict={self.input_z:z_sample})
-
-			imsave(self.images_dir+"/test/output_draw.jpg", flat_batch(gen_x_temp,self.batch_size,10,10))
+			for t in range(self.steps):
+				gen_x_temp[t] = np.reshape(gen_x_temp[t],[self.batch_size, self.img_width, self.img_height, self.img_depth])
+				gen_x_temp[t] = flat_batch(gen_x_temp[t],self.batch_size,10,10)
+				imsave(self.images_dir+"/test/output_draw_" + str(t) + ".jpg", gen_x_temp[t])
 
 
 
