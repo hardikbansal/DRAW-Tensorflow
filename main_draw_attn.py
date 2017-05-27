@@ -40,24 +40,6 @@ class Draw():
 		self.images_dir = "./output/draw_attn/imgs"
 
 
-	# def create_filters(self, g_x, g_y, delta, sigma_squared, filter_size):
-	#
-	# 	eps=1e-8
-	#
-	# 	temp_1 = tf.stack([tf.stack([tf.range(filter_size, dtype=tf.float32) - filter_size/2.0 - 1/2.0]*self.img_width)]*self.batch_size) + tf.reshape(g_x,[self.batch_size, 1, 1])
-	# 	temp_2 = tf.stack([tf.stack([tf.range(filter_size, dtype=tf.float32) - filter_size/2.0 - 1/2.0]*self.img_height)]*self.batch_size) + tf.reshape(g_y,[self.batch_size, 1, 1])
-	#
-	# 	temp_3 = tf.stack([tf.transpose(tf.stack([tf.range(self.img_width, dtype=tf.float32)]*self.filter_size))]*self.batch_size)
-	# 	temp_4 = tf.stack([tf.transpose(tf.stack([tf.range(self.img_height, dtype=tf.float32)]*self.filter_size))]*self.batch_size)
-	#
-	# 	F_x = tf.exp(-1*tf.square((temp_1 - temp_3))/(2*tf.reshape(sigma_squared,[self.batch_size, 1, 1])))
-	# 	F_y = tf.exp(-1*tf.square((temp_2 - temp_4))/(2*tf.reshape(sigma_squared,[self.batch_size, 1, 1])))
-	#
-	# 	F_x = F_x/tf.maximum(tf.reduce_sum(F_x, 1, keep_dims=True), eps)
-	# 	F_y = F_y/tf.maximum(tf.reduce_sum(F_y, 1, keep_dims=True), eps)
-	#
-	#
-	# 	return F_x, F_y
 
 	def filterbank(self, g_x, g_y, delta, sigma_squared, filter_size):
 
@@ -78,6 +60,22 @@ class Draw():
 		return F_x, F_y
 
 
+	# def filterbank(gx, gy, sigma2,delta, N):
+	#     grid_i = tf.reshape(tf.cast(tf.range(N), tf.float32), [1, -1])
+	#     mu_x = gx + (grid_i - N / 2 - 0.5) * delta # eq 19
+	#     mu_y = gy + (grid_i - N / 2 - 0.5) * delta # eq 20
+	#     a = tf.reshape(tf.cast(tf.range(A), tf.float32), [1, 1, -1])
+	#     b = tf.reshape(tf.cast(tf.range(B), tf.float32), [1, 1, -1])
+	#     mu_x = tf.reshape(mu_x, [-1, N, 1])
+	#     mu_y = tf.reshape(mu_y, [-1, N, 1])
+	#     sigma2 = tf.reshape(sigma2, [-1, 1, 1])
+	#     Fx = tf.exp(-tf.square((a - mu_x) / (2*sigma2))) # 2*sigma2?
+	#     Fy = tf.exp(-tf.square((b - mu_y) / (2*sigma2))) # batch x N x B
+	#     # normalize, sum over A and B dims
+	#     Fx=Fx/tf.maximum(tf.reduce_sum(Fx,2,keep_dims=True),eps)
+	#     Fy=Fy/tf.maximum(tf.reduce_sum(Fy,2,keep_dims=True),eps)
+	#     return Fx,Fy
+
 	def downsample(self, F_x, F_y, img, gamma):
 
 		img_temp = tf.reshape(img, [self.batch_size, self.img_width, self.img_height])
@@ -85,7 +83,7 @@ class Draw():
 
 		conv_temp = tf.reshape(tf.matmul(F_y_temp,tf.matmul(img_temp,F_x)),[self.batch_size, self.filter_size*self.filter_size])
 
-		return conv_temp
+		return conv_temp*gamma
 
 	def upsample(self, F_x, F_y, img, gamma):
 
@@ -94,7 +92,7 @@ class Draw():
 
 		conv_temp = tf.reshape(tf.matmul(F_y,tf.matmul(img_temp,F_x_temp)),[self.batch_size, self.img_size])
 
-		return conv_temp
+		return conv_temp*gamma
 
 
 	def read(self, input_x, input_x_hat, input_h, name="read"):
@@ -105,11 +103,12 @@ class Draw():
 			g_x_hat = linear1d(input_h, self.dec_size, 1, name="g_x_hat")
 			g_y_hat = linear1d(input_h, self.dec_size, 1, name="g_y_hat")
 			sigma_squared = tf.exp(linear1d(input_h, self.dec_size, 1, name="sigma_squared"))
-			delta = tf.exp(linear1d(input_h, self.dec_size, 1, name="delta"))
+			delta_hat = tf.exp(linear1d(input_h, self.dec_size, 1, name="delta"))
 			gamma = tf.exp(linear1d(input_h, self.dec_size, 1, name="gamma"))
 
 			g_x = (self.img_width + 1)/2*(g_x_hat+1)
 			g_y = (self.img_height + 1)/2*(g_y_hat+1)
+			delta = (self.img_width - 1)/(self.filter_size-1)*delta_hat
 
 			# Getting the filters for the Downsampling
 
@@ -127,17 +126,22 @@ class Draw():
 			g_x_hat = linear1d(input_h, self.dec_size, 1, name="g_x_hat")
 			g_y_hat = linear1d(input_h, self.dec_size, 1, name="g_y_hat")
 			sigma_squared = tf.exp(linear1d(input_h, self.dec_size, 1, name="sigma_squared"))
-			delta = tf.exp(linear1d(input_h, self.dec_size, 1, name="delta"))
+			delta_hat = tf.exp(linear1d(input_h, self.dec_size, 1, name="delta"))
 			gamma = tf.exp(linear1d(input_h, self.dec_size, 1, name="gamma"))
 
 			g_x = (self.img_width + 1)/2*(g_x_hat+1)
 			g_y = (self.img_height + 1)/2*(g_y_hat+1)
+			delta = (self.img_width - 1)/(self.filter_size-1)*delta_hat
 
 			filter_x, filter_y = self.filterbank(g_x, g_y, delta, sigma_squared, self.filter_size)
 
 			img_temp = linear1d(input_h, self.dec_size, self.filter_size*self.filter_size, name="linear")
 
 			r_temp = self.upsample(filter_x, filter_y, img_temp, gamma)
+
+			# img_temp = linear1d(input_h, self.dec_size, self.img_size, name="linear")
+			#
+			# r_temp = img_temp
 
 			return r_temp
 
