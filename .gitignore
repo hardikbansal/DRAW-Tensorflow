@@ -1,0 +1,6 @@
+__pycache__/
+output/
+MNIST_data/
+
+*.py[cod]
+
