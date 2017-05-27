@@ -13,7 +13,7 @@ from tensorflow.examples.tutorials.mnist import input_data
 from scipy.misc import imsave
 from PIL import Image
 from options import trainOptions
-
+from tqdm import tqdm
 
 class Draw():
 	def initialize(self):
@@ -167,7 +167,7 @@ class Draw():
 
 		self.model_vars = tf.trainable_variables()
 
-		for var in self.model_vars: print(var.name, var.get_shape())
+		# for var in self.model_vars: print(var.name, var.get_shape())
 
 
 
@@ -225,9 +225,9 @@ class Draw():
 			test_imgs = self.mnist.train.next_batch(self.batch_size)[0]
 			test_imgs = test_imgs.reshape((self.batch_size,28*28*1))
 
-			for epoch in range(0,self.max_epoch):
+			for epoch in tqdm(range(0,self.max_epoch),"Epoch    "):
 
-				for itr in range(0,int(self.n_samples/self.batch_size)):
+				for itr in tqdm(range(0,int(self.n_samples/self.batch_size)),"Iteration"):
 
 					batch = self.mnist.train.next_batch(self.batch_size)
 					imgs = batch[0]
@@ -237,7 +237,7 @@ class Draw():
 
 
 					_, summary_str = sess.run([self.loss_optimizer, self.merged_summ],feed_dict={self.input_x:imgs})
-					print('In the iteration '+str(itr)+" of epoch"+str(epoch))
+					# print('In the iteration '+str(itr)+" of epoch"+str(epoch))
 
 					writer.add_summary(summary_str,epoch*int(self.n_samples/self.batch_size) + itr)
 
