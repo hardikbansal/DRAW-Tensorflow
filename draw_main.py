@@ -358,7 +358,7 @@ class Draw():
 
 					_, summary_str, img_loss_temp, lat_loss_temp = sess.run([self.loss_optimizer, self.merged_summ, self.images_loss_mean, self.lat_loss_mean],feed_dict={self.input_x:imgs})
 
-					# print("In the iteration "+str(itr)+" of epoch "+str(epoch)+" with images loss of "+str(img_loss_temp)+" and lat loss of "+str(lat_loss_temp))
+					print("In the iteration "+str(itr)+" of epoch "+str(epoch)+" with images loss of "+str(img_loss_temp)+" and lat loss of "+str(lat_loss_temp))
 
 					writer.add_summary(summary_str,epoch*int(self.n_samples/self.batch_size) + itr)
 
