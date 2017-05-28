@@ -31,6 +31,7 @@ class Draw():
 		self.steps = opt.steps
 		self.enc_size = opt.enc_size
 		self.dec_size = opt.dec_size
+		self.load_checkpoint = False
 
 		self.n_samples = self.mnist.train.num_examples
 
@@ -139,8 +140,10 @@ class Draw():
 				z = self.sampler(self.mean_z[t], self.std_z[t])
 				h_dec, dec_state = self.decoder(z, dec_state)
 				self.gen_x = self.gen_x + self.write(h_dec)
-
 				scope.reuse_variables()
+
+
+			self.gen_x = tf.nn.sigmoid(self.gen_x)
 
 			# T steps for generating after training
 
@@ -173,7 +176,7 @@ class Draw():
 
 	def loss_setup(self):
 
-		self.images_loss = self.generation_loss(self.input_x, tf.nn.sigmoid(self.gen_x))
+		self.images_loss = self.generation_loss(self.input_x, self.gen_x)
 		self.lat_loss = self.latent_loss(self.mean_z, self.std_z)
 
 		self.images_loss_mean = tf.reduce_mean(self.images_loss)
@@ -225,6 +228,10 @@ class Draw():
 			test_imgs = self.mnist.train.next_batch(self.batch_size)[0]
 			test_imgs = test_imgs.reshape((self.batch_size,28*28*1))
 
+			if self.load_checkpoint:
+				chkpt_fname = tf.train.latest_checkpoint(self.check_dir)
+				saver.restore(sess,chkpt_fname)
+
 			for epoch in tqdm(range(0,self.max_epoch),"Epoch    "):
 
 				for itr in tqdm(range(0,int(self.n_samples/self.batch_size)),"Iteration"):
@@ -245,7 +252,6 @@ class Draw():
 
 				out_img_test = sess.run(self.gen_x,feed_dict={self.input_x:test_imgs})
 				out_img_test = np.reshape(out_img_test,[self.batch_size, self.img_width, self.img_height, self.img_depth])
-				out_img_test = sigmoid(out_img_test)
 
 				imsave(self.images_dir+"/train/epoch_"+str(epoch)+".jpg", flat_batch(out_img_test,self.batch_size,10,10))
 
@@ -278,10 +284,6 @@ class Draw():
 				gen_x_temp[t] = np.reshape(gen_x_temp[t],[self.batch_size, self.img_width, self.img_height, self.img_depth])
 				gen_x_temp[t] = flat_batch(gen_x_temp[t],self.batch_size,10,10)
 				imsave(self.images_dir+"/test/output_draw_" + str(t) + ".jpg", gen_x_temp[t])
-
-
-
-
 
 
 def main():
