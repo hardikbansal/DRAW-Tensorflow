@@ -1,7 +1,24 @@
 # DRAW-Tensorflow
 
-**Work in Progress**
-
 This is a tensorflow implementation of DRAW model from the paper https://arxiv.org/pdf/1502.04623.pdf
 
-First we implemented a basic Variational Autoencoder to understand basic models Autoencoder models and after that, we have also implemented the Google's DRAW model for generating images, both with attention and without attention.
+I have coded both the attention model and one without attention. Output for the same are as follow. To learn more about the draw network you can read in this blog by [evjang](http://blog.evjang.com/2016/06/understanding-and-implementing.html).
+
+You can also find the trained model in the output directory.
+
+1. To run the already trained model
+
+python draw_main.py --test True --model draw
+
+or
+
+python draw_main.py --test True --model draw_attn
+
+
+2. To train the model you can do
+
+python draw_main.py --model draw
+
+or 
+
+python draw_main.py --model draw

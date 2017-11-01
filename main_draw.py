@@ -157,10 +157,12 @@ class Draw():
 
 				for t in range(0, self.steps):
 
-					if t > 2:
-						z_gen = self.same_sample(self.batch_size, self.z_size)
-					else :
-						z_gen = tf.random_normal([self.batch_size, self.z_size], 0 , 1, dtype=tf.float32)
+					# if t > 2:
+					# 	z_gen = self.same_sample(self.batch_size, self.z_size)
+					# else :
+					# 	z_gen = tf.random_normal([self.batch_size, self.z_size], 0 , 1, dtype=tf.float32)
+
+					z_gen = tf.random_normal([self.batch_size, self.z_size], 0 , 1, dtype=tf.float32)
 
 					h_dec_gen, dec_state_gen = self.decoder(z_gen, dec_state_gen)
 					self.gen_x_gen = self.gen_x_gen + self.write(h_dec_gen)

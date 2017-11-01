@@ -1,0 +1,6 @@
+model_checkpoint_path: "draw-19"
+all_model_checkpoint_paths: "draw-15"
+all_model_checkpoint_paths: "draw-16"
+all_model_checkpoint_paths: "draw-17"
+all_model_checkpoint_paths: "draw-18"
+all_model_checkpoint_paths: "draw-19"
