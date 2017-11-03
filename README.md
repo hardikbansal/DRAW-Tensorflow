@@ -6,19 +6,23 @@ I have coded both the attention model and one without attention. Output for the 
 
 You can also find the trained model in the output directory.
 
+Results:
+
+<p align="center"> <img src="./output/draw/imgs/test/anim.gif"> </p>
+
 1. To run the already trained model
 
-python draw_main.py --test True --model draw
+```python draw_main.py --test True --model draw```
 
-or
+and for model with attention 
 
-python draw_main.py --test True --model draw_attn
+```python draw_main.py --test True --model draw_attn```
 
 
-2. To train the model you can do
+2. To train the model you can do following for model with attention
 
-python draw_main.py --model draw
+```python draw_main.py --model draw```
 
-or 
+and for model with attention 
 
-python draw_main.py --model draw
+```python draw_main.py --model draw_attn```
