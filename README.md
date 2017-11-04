@@ -10,12 +10,12 @@ Results:
 
 1. Draw without attention:
 
-<p align="center"> <img src="./output/draw/minst/imgs/test/anim.gif"> </p>
+<p align="center"> <img src="./output/draw/mnist/imgs/test/anim.gif"> </p>
 
 
-2. Draw without attention:
+2. Draw with attention:
 
-<p align="center"> <img src="./output/draw_attn/minst/imgs/test/anim.gif"> </p>
+<p align="center"> <img src="./output/draw_attn/mnist/imgs/test/anim.gif"> </p>
 
 1. To run the already trained model
 
