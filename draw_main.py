@@ -33,7 +33,7 @@ class Draw():
 		self.dec_size = opt.dec_size
 		self.filter_size = 5
 		self.load_checkpoint = False
-		self.model = "draw_attn"
+		self.model = opt.model
 		self.dataset = opt.dataset
 
 		self.n_samples = opt.n_samples

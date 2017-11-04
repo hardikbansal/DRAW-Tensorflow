@@ -20,7 +20,7 @@ class trainOptions():
 		self.parser.add_option('--steps', type='int', default=10, dest='steps')
 		self.parser.add_option('--enc_size', type='int', default=256, dest='enc_size')
 		self.parser.add_option('--dec_size', type='int', default=256, dest='dec_size')
-		self.parser.add_option('--model', type='string', default="draw_attn", dest='model_type')
+		self.parser.add_option('--model', type='string', default="draw_attn", dest='model')
 		self.parser.add_option('--dataset', type='string', default="mnist", dest='dataset')
 
 		self.initialized = True

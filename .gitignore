@@ -1,5 +1,7 @@
 __pycache__/
 MNIST_data/
+output/draw/sketch
+output/draw_attn/sketch
 
 *.py[cod]
 
